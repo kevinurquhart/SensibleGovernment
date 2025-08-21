@@ -1,0 +1,44 @@
+@page "/admin/createpost"
+
+@using SensibleGovernment.Models
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Admin - Create Post</PageTitle>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">Create New Post</h2>
+                    <EditForm Model="@newPost">
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <InputText class="form-control" @bind-Value="newPost.Title" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Topic</label>
+                            <InputSelect class="form-select" @bind-Value="newPost.Topic" TValue="string">
+                                <option value="">Select Topic</option>
+                                <option value="Sport">Sport</option>
+                                <option value="News">News</option>
+                                <option value="Education">Education</option>
+                                <option value="Technology">Technology</option>
+                                <option value="Health">Health</option>
+                            </InputSelect>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Content</label>
+                            <InputTextArea class="form-control" rows="6" @bind-Value="newPost.Content" />
+                        </div>
+                        <button class="btn btn-success w-100" type="submit">Publish</button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Post newPost = new Post();
+}

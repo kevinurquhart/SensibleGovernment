@@ -1,15 +1,148 @@
 ﻿@page "/"
+@using SensibleGovernment.Models
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Central News - Home</PageTitle>
 
-<div>
-    <MainPicture></MainPicture>
+<div class="container py-4">
+    <!-- Hero Section -->
+    <div class="row mb-5">
+        <div class="col-md-8">
+            <h1 class="display-4 fw-bold">Welcome to Central News</h1>
+            <p class="lead">Your focal point for stories from around the internet. Discover, like, and comment on the latest news and blog posts.</p>
+            <a class="btn btn-primary btn-lg" href="/register">Join Now</a>
+        </div>
+        <div class="col-md-4 d-flex align-items-center justify-content-center">
+            <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=400&q=80" class="img-fluid rounded shadow" alt="Central News" style="max-height: 200px;">
+        </div>
+    </div>
+
+    <!-- Topic Navigation -->
+    <nav class="mb-4">
+        <ul class="nav nav-pills justify-content-center">
+            @foreach (var topic in topics)
+            {
+                <li class="nav-item">
+                    <button type="button" class="nav-link @(selectedTopic == topic ? "active" : "")"
+                            @onclick="() => SelectTopic(topic)">
+                        @topic
+                    </button>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <!-- Featured Post -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="card-title text-primary">@featuredPost.Title</h2>
+                    <p class="card-text">@featuredPost.Content</p>
+                    <div class="d-flex align-items-center">
+                        <span class="me-3"><i class="bi bi-hand-thumbs-up"></i> @featuredPost.Likes.Count Likes</span>
+                        <span class="me-3"><i class="bi bi-chat-dots"></i> @featuredPost.Comments.Count Comments</span>
+                        <span class="me-3 badge bg-secondary">@featuredPost.Topic</span>
+                        <a class="btn btn-outline-primary btn-sm ms-auto" href="@($"/post/{featuredPost.Id}")">Read More</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Posts Grid -->
+    <h3 class="mb-3">Recent Posts - @selectedTopic</h3>
+    <div class="row">
+        @foreach (var post in FilteredPosts)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@post.Title</h5>
+                        <span class="badge bg-secondary mb-2">@post.Topic</span>
+                        <p class="card-text flex-grow-1">@post.Content.Substring(0, Math.Min(post.Content.Length, 120))...</p>
+                        <div class="d-flex align-items-center mt-2">
+                            <span class="me-2"><i class="bi bi-hand-thumbs-up"></i> @post.Likes.Count</span>
+                            <span class="me-2"><i class="bi bi-chat-dots"></i> @post.Comments.Count</span>
+                            <a class="btn btn-link btn-sm ms-auto" href="@($"/post/{post.Id}")">Read More</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 </div>
 
-<div>
-    <h1>Hello, world!</h1>
+@code {
+    private List<string> topics = new() { "All", "Sport", "News", "Education", "Technology", "Health" };
+    private string selectedTopic = "All";
 
-    Welcome to your new app.
-</div>
+    // Add this dummy data for recentPosts
+    private List<Post> recentPosts = new List<Post>
+    {
+        new Post
+        {
+            Id = 2,
+            Title = "Tech Trends 2025",
+            Content = "A look at the top technology trends that will shape the coming year, from AI to quantum computing.",
+            Topic = "Technology",
+            Likes = new List<Like> { new Like(), new Like() },
+            Comments = new List<Comment> { new Comment() }
+        },
+        new Post
+        {
+            Id = 3,
+            Title = "Global Politics Update",
+            Content = "Major events in global politics and what they mean for the future.",
+            Topic = "News",
+            Likes = new List<Like> { new Like() },
+            Comments = new List<Comment> { new Comment(), new Comment(), new Comment() }
+        },
+        new Post
+        {
+            Id = 4,
+            Title = "Health & Wellness",
+            Content = "Tips and stories for maintaining your health and wellness in a busy world.",
+            Topic = "Health",
+            Likes = new List<Like> { new Like(), new Like(), new Like(), new Like() },
+            Comments = new List<Comment> { }
+        },
+        new Post
+        {
+            Id = 5,
+            Title = "Premier League Highlights",
+            Content = "Catch up on all the action from the latest round of Premier League matches.",
+            Topic = "Sport",
+            Likes = new List<Like> { new Like() },
+            Comments = new List<Comment> { new Comment() }
+        },
+        new Post
+        {
+            Id = 6,
+            Title = "Education Reform",
+            Content = "How new policies are shaping the future of education.",
+            Topic = "Education",
+            Likes = new List<Like> { new Like(), new Like() },
+            Comments = new List<Comment> { }
+        }
+    };
 
+    private Post featuredPost = new Post
+    {
+        Id = 1,
+        Title = "Featured: The Future of News Aggregation",
+        Content = "Explore how Central News is changing the way people discover and interact with stories from around the web. Join the conversation and be part of the future.",
+        Topic = "Technology",
+        Likes = new List<Like> { new Like(), new Like(), new Like() },
+        Comments = new List<Comment> { new Comment(), new Comment() }
+    };
 
+    private IEnumerable<Post> FilteredPosts =>
+        selectedTopic == "All"
+            ? recentPosts
+            : recentPosts.Where(p => p.Topic == selectedTopic);
+
+    private void SelectTopic(string topic)
+    {
+        selectedTopic = topic;
+    }
+}

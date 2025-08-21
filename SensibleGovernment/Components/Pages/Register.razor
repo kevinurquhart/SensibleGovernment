@@ -1,0 +1,44 @@
+@page "/register"
+
+<PageTitle>Register - Central News</PageTitle>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="card-title mb-4">Create Your Account</h2>
+                    <EditForm Model="@registerModel">
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <InputText class="form-control" @bind-Value="registerModel.UserName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" type="email" @bind-Value="registerModel.Email" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText class="form-control" type="password" @bind-Value="registerModel.Password" />
+                        </div>
+                        <button class="btn btn-primary w-100" type="submit">Register</button>
+                    </EditForm>
+                    <div class="mt-3 text-center">
+                        <a href="/login">Already have an account? Login</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterModel registerModel = new();
+
+    public class RegisterModel
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}
