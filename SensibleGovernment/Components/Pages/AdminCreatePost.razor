@@ -1,44 +1,152 @@
 @page "/admin/createpost"
-
 @using SensibleGovernment.Models
+@using SensibleGovernment.Services
 @using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@inject PostService PostService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
 
 <PageTitle>Admin - Create Post</PageTitle>
 
 <div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="card-title mb-4">Create New Post</h2>
-                    <EditForm Model="@newPost">
-                        <div class="mb-3">
-                            <label class="form-label">Title</label>
-                            <InputText class="form-control" @bind-Value="newPost.Title" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Topic</label>
-                            <InputSelect class="form-select" @bind-Value="newPost.Topic" TValue="string">
-                                <option value="">Select Topic</option>
-                                <option value="Sport">Sport</option>
-                                <option value="News">News</option>
-                                <option value="Education">Education</option>
-                                <option value="Technology">Technology</option>
-                                <option value="Health">Health</option>
-                            </InputSelect>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Content</label>
-                            <InputTextArea class="form-control" rows="6" @bind-Value="newPost.Content" />
-                        </div>
-                        <button class="btn btn-success w-100" type="submit">Publish</button>
-                    </EditForm>
+    @if (!AuthService.IsAuthenticated)
+    {
+        <div class="alert alert-warning">
+            <h4>Authentication Required</h4>
+            <p>You must be logged in to create a post.</p>
+            <a href="/login" class="btn btn-primary">Login</a>
+        </div>
+    }
+    else
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">Create New Post</h2>
+
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <div class="alert alert-danger">
+                                @errorMessage
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(successMessage))
+                        {
+                            <div class="alert alert-success">
+                                @successMessage
+                            </div>
+                        }
+
+                        <EditForm Model="@newPost" OnValidSubmit="HandleCreatePost">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label">Title</label>
+                                <InputText class="form-control" @bind-Value="newPost.Title" />
+                                <ValidationMessage For="@(() => newPost.Title)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Topic</label>
+                                <InputSelect class="form-select" @bind-Value="newPost.Topic" TValue="string">
+                                    <option value="">Select Topic</option>
+                                    <option value="Sport">Sport</option>
+                                    <option value="News">News</option>
+                                    <option value="Education">Education</option>
+                                    <option value="Technology">Technology</option>
+                                    <option value="Health">Health</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newPost.Topic)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Content</label>
+                                <InputTextArea class="form-control" rows="10" @bind-Value="newPost.Content" />
+                                <ValidationMessage For="@(() => newPost.Content)" />
+                                <small class="form-text text-muted">Minimum 50 characters</small>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success flex-fill" type="submit" disabled="@isCreating">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    }
+                                    Publish
+                                </button>
+                                <a href="/" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </EditForm>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 @code {
-    private Post newPost = new Post();
+    private PostModel newPost = new();
+    private bool isCreating = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private async Task HandleCreatePost()
+    {
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null)
+        {
+            errorMessage = "You must be logged in to create a post";
+            return;
+        }
+
+        isCreating = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var post = new Post
+            {
+                Title = newPost.Title,
+                Content = newPost.Content,
+                Topic = newPost.Topic,
+                AuthorId = AuthService.CurrentUser.Id,
+                Created = DateTime.Now
+            };
+
+            var createdPost = await PostService.CreatePostAsync(post);
+
+            successMessage = "Post created successfully! Redirecting...";
+            StateHasChanged();
+            await Task.Delay(1000);
+
+            Navigation.NavigateTo($"/post/{createdPost.Id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred while creating the post. Please try again.";
+            Console.WriteLine($"Error creating post: {ex.Message}");
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    public class PostModel
+    {
+        [Required(ErrorMessage = "Title is required")]
+        [StringLength(200, MinimumLength = 5, ErrorMessage = "Title must be between 5 and 200 characters")]
+        public string Title { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please select a topic")]
+        public string Topic { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Content is required")]
+        [StringLength(10000, MinimumLength = 50, ErrorMessage = "Content must be between 50 and 10000 characters")]
+        public string Content { get; set; } = string.Empty;
+    }
 }

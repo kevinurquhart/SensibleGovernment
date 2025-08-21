@@ -1,0 +1,517 @@
+﻿@page "/post/{PostId:int}"
+@using SensibleGovernment.Models
+@using SensibleGovernment.Services
+@inject PostService PostService
+@inject AuthService AuthService
+@inject AdminService AdminService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>@(post?.Title ?? "Loading...") - Central News</PageTitle>
+
+@if (loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (post == null)
+{
+    <div class="text-center py-5">
+        <i class="bi bi-exclamation-triangle display-1 text-danger"></i>
+        <h3 class="mt-3">Story not found</h3>
+        <p class="text-muted">This story may have been removed or doesn't exist.</p>
+        <a href="/" class="btn btn-primary btn-lg">
+            <i class="bi bi-arrow-left"></i> Back to Home
+        </a>
+    </div>
+}
+else
+{
+    <div class="animate-in">
+        <!-- Article Header with Hero Image -->
+        @if (!string.IsNullOrEmpty(post.FeaturedImageUrl))
+        {
+            <div class="article-header">
+                <img src="@post.FeaturedImageUrl" class="article-header-image" alt="@post.Title">
+                <div class="article-header-overlay">
+                    <div class="container">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="/" class="text-white-50">Home</a></li>
+                                <li class="breadcrumb-item"><a href="/?topic=@post.Topic" class="text-white-50">@post.Topic</a></li>
+                                <li class="breadcrumb-item active text-white" aria-current="page">Article</li>
+                            </ol>
+                        </nav>
+                        <h1 class="display-4 fw-bold">@post.Title</h1>
+                        <div class="d-flex flex-wrap align-items-center mt-3">
+                            <img src="https://ui-avatars.com/api/?name=@post.Author?.UserName&background=random"
+                                 class="rounded-circle me-2" width="40" height="40" alt="Author">
+                            <span class="me-3">By <strong>@(post.Author?.UserName ?? "Staff Writer")</strong></span>
+                            <span class="me-3"><i class="bi bi-calendar3"></i> @post.Created.ToString("MMMM dd, yyyy")</span>
+                            <span class="badge bg-light text-dark">@post.Topic</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Alternative header without image -->
+            <div class="container mt-4">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a href="/?topic=@post.Topic">@post.Topic</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Article</li>
+                    </ol>
+                </nav>
+                <h1 class="display-5 fw-bold mb-3">@post.Title</h1>
+                <div class="d-flex flex-wrap align-items-center mb-4">
+                    <img src="https://ui-avatars.com/api/?name=@post.Author?.UserName&background=random"
+                         class="rounded-circle me-2" width="40" height="40" alt="Author">
+                    <span class="me-3">By <strong>@(post.Author?.UserName ?? "Staff Writer")</strong></span>
+                    <span class="me-3"><i class="bi bi-calendar3"></i> @post.Created.ToString("MMMM dd, yyyy")</span>
+                    <span class="badge bg-secondary">@post.Topic</span>
+                </div>
+            </div>
+        }
+
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <!-- Engagement Stats Bar -->
+                    <div class="content-section mb-4">
+                        <div class="d-flex justify-content-around text-center">
+                            <div>
+                                <div class="display-6 text-primary">@post.ViewCount</div>
+                                <small class="text-muted">Views</small>
+                            </div>
+                            <div>
+                                <div class="display-6 text-success">@post.Likes.Count</div>
+                                <small class="text-muted">Likes</small>
+                            </div>
+                            <div>
+                                <div class="display-6 text-info">@post.Comments.Count</div>
+                                <small class="text-muted">Comments</small>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-primary" @onclick="SharePost">
+                                    <i class="bi bi-share"></i> Share
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- The Facts Section -->
+                    <article class="content-section facts-section">
+                        <h2 class="mb-4">
+                            <i class="bi bi-newspaper text-primary"></i> The Facts
+                        </h2>
+
+                        <!-- Inline image with text wrapping -->
+                        @if (!string.IsNullOrEmpty(post.FeaturedImageUrl))
+                        {
+                            <div class="float-end ms-3 mb-3" style="max-width: 50%;">
+                                <img src="@post.FeaturedImageUrl" class="img-fluid rounded shadow" alt="@post.Title">
+                                @if (!string.IsNullOrEmpty(post.ImageCaption))
+                                {
+                                    <p class="text-muted small mt-2 text-center">@post.ImageCaption</p>
+                                }
+                            </div>
+                        }
+
+                        <div class="article-content" style="font-size: 1.1rem; line-height: 1.8;">
+                            @((MarkupString)FormatContent(post.Content))
+                        </div>
+
+                        <div style="clear: both;"></div>
+
+                        @if (post.Sources?.Any() == true)
+                        {
+                            <div class="mt-5 p-4 bg-light rounded-3">
+                                <h5 class="mb-3">
+                                    <i class="bi bi-link-45deg"></i> Sources & References
+                                </h5>
+                                <div class="row">
+                                    @foreach (var source in post.Sources)
+                                    {
+                                        <div class="col-md-6 mb-3">
+                                            <a href="@source.Url" target="_blank" rel="noopener noreferrer"
+                                               class="text-decoration-none">
+                                                <div class="card h-100 border-0 shadow-sm">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">
+                                                            <i class="bi bi-box-arrow-up-right"></i> @source.Title
+                                                        </h6>
+                                                        @if (!string.IsNullOrEmpty(source.Description))
+                                                        {
+                                                            <p class="card-text small text-muted">@source.Description</p>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </article>
+
+                    <!-- Editorial Opinion Section -->
+                    @if (!string.IsNullOrEmpty(post.Opinion))
+                    {
+                        <article class="content-section opinion-section">
+                            <h2 class="mb-4">
+                                <i class="bi bi-chat-square-quote text-warning"></i> Editorial Opinion
+                            </h2>
+                            <div class="alert alert-warning mb-4">
+                                <i class="bi bi-info-circle"></i> The following represents the author's personal perspective and analysis.
+                            </div>
+                            <div class="article-content fst-italic" style="font-size: 1.1rem; line-height: 1.8;">
+                                @((MarkupString)FormatContent(post.Opinion))
+                            </div>
+                        </article>
+                    }
+
+                    <!-- Like and Share Section -->
+                    <div class="content-section text-center">
+                        <h5 class="mb-3">Enjoyed this article?</h5>
+                        <div class="d-flex justify-content-center gap-3">
+                            @if (AuthService.IsAuthenticated)
+                            {
+                                <button class="btn @(userHasLiked ? "btn-primary" : "btn-outline-primary") btn-lg"
+                                        @onclick="ToggleLike">
+                                    <i class="bi @(userHasLiked ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                                    Like (@post.Likes.Count)
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-primary btn-lg" @onclick="@(() => Navigation.NavigateTo("/login"))">
+                                    <i class="bi bi-hand-thumbs-up"></i> Login to Like
+                                </button>
+                            }
+                            <button class="btn btn-outline-secondary btn-lg" @onclick="SharePost">
+                                <i class="bi bi-share"></i> Share
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Comments Section -->
+                    <section class="content-section">
+                        <h3 class="mb-4">
+                            <i class="bi bi-chat-left-text"></i> Discussion (@post.Comments.Count)
+                        </h3>
+
+                        @if (AuthService.IsAuthenticated)
+                        {
+                            @if (AuthService.CurrentUser?.IsActive == true)
+                            {
+                                <div class="mb-4">
+                                    <div class="d-flex align-items-start">
+                                        <img src="https://ui-avatars.com/api/?name=@AuthService.CurrentUser.UserName&background=random"
+                                             class="rounded-circle me-3" width="48" height="48" alt="Your avatar">
+                                        <div class="flex-grow-1">
+                                            <EditForm Model="@newComment" OnValidSubmit="AddComment">
+                                                <div class="mb-2">
+                                                    <InputTextArea class="form-control" rows="3" @bind-Value="newComment.Content"
+                                                                   placeholder="Share your thoughts on this story..." />
+                                                </div>
+                                                <button type="submit" class="btn btn-primary" disabled="@addingComment">
+                                                    @if (addingComment)
+                                                    {
+                                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                                    }
+                                                    Post Comment
+                                                </button>
+                                            </EditForm>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> Your account has been suspended.
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <div class="card-body text-center">
+                                    <h5>Join the Conversation</h5>
+                                    <p>Login to share your thoughts and engage with our community</p>
+                                    <a href="/login" class="btn btn-light">Login Now</a>
+                                </div>
+                            </div>
+                        }
+
+                        @if (post.Comments.Any())
+                        {
+                            @foreach (var comment in post.Comments.OrderByDescending(c => c.Created))
+                            {
+                                <div class="comment-card">
+                                    <div class="d-flex">
+                                        <img src="https://ui-avatars.com/api/?name=@comment.Author?.UserName&background=random"
+                                             class="rounded-circle me-3" width="48" height="48" alt="@comment.Author?.UserName">
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="mb-1">
+                                                        @comment.Author?.UserName
+                                                        @if (comment.Author?.IsAdmin == true)
+                                                        {
+                                                            <span class="badge bg-danger ms-2">Admin</span>
+                                                        }
+                                                    </h6>
+                                                    <small class="text-muted">@GetTimeAgo(comment.Created)</small>
+                                                </div>
+                                                <div>
+                                                    @if (AuthService.IsAuthenticated)
+                                                    {
+                                                        @if (AuthService.CurrentUser?.Id == comment.AuthorId || AuthService.CurrentUser?.IsAdmin == true)
+                                                        {
+                                                            <button class="btn btn-sm btn-outline-danger me-1"
+                                                                    @onclick="() => DeleteComment(comment.Id)">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        }
+                                                        @if (AuthService.CurrentUser?.Id != comment.AuthorId)
+                                                        {
+                                                            <button class="btn btn-sm btn-outline-warning"
+                                                                    @onclick="() => ShowReportDialog(comment)">
+                                                                <i class="bi bi-flag"></i>
+                                                            </button>
+                                                        }
+                                                    }
+                                                </div>
+                                            </div>
+                                            <p class="mt-2 mb-0">@comment.Content</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <i class="bi bi-chat-left-text display-4 text-muted"></i>
+                                <p class="mt-3 text-muted">No comments yet. Be the first to share your thoughts!</p>
+                            </div>
+                        }
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Report Modal -->
+@if (showReportModal)
+{
+    <div class="modal show d-block animate-in" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Report Comment</h5>
+                    <button type="button" class="btn-close" @onclick="CloseReportDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Why are you reporting this comment?</p>
+                    @foreach (var reason in reportReasons)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="reportReason"
+                                   id="@reason" value="@reason"
+                                   @onchange="@((e) => reportReason = reason)">
+                            <label class="form-check-label" for="@reason">
+                                @reason
+                            </label>
+                        </div>
+                    }
+                    <div class="mt-3">
+                        <label class="form-label">Additional details (optional):</label>
+                        <textarea class="form-control" rows="3" @bind="reportDetails"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseReportDialog">Cancel</button>
+                    <button type="button" class="btn btn-warning" @onclick="SubmitReport"
+                            disabled="@(string.IsNullOrEmpty(reportReason))">
+                        Submit Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int PostId { get; set; }
+
+    private Post? post;
+    private Comment newComment = new();
+    private bool loading = true;
+    private bool addingComment = false;
+    private bool userHasLiked = false;
+
+    // Report modal
+    private bool showReportModal = false;
+    private Comment? reportedComment;
+    private string reportReason = "";
+    private string reportDetails = "";
+    private List<string> reportReasons = new()
+    {
+        "Spam or advertising",
+        "Offensive or inappropriate",
+        "Harassment or bullying",
+        "Misinformation",
+        "Other"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPost();
+    }
+
+    private async Task LoadPost()
+    {
+        loading = true;
+        post = await PostService.GetPostByIdAsync(PostId);
+
+        if (post != null)
+        {
+            // Increment view count
+            post.ViewCount++;
+            // In production, you'd save this to the database
+
+            if (AuthService.IsAuthenticated && AuthService.CurrentUser != null)
+            {
+                userHasLiked = post.Likes.Any(l => l.UserId == AuthService.CurrentUser.Id);
+            }
+        }
+
+        loading = false;
+    }
+
+    private async Task ToggleLike()
+    {
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null) return;
+
+        var liked = await PostService.ToggleLikeAsync(PostId, AuthService.CurrentUser.Id);
+        userHasLiked = liked;
+        await LoadPost();
+    }
+
+    private async Task AddComment()
+    {
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null || string.IsNullOrWhiteSpace(newComment.Content))
+            return;
+
+        addingComment = true;
+
+        var comment = new Comment
+        {
+            Content = newComment.Content,
+            PostId = PostId,
+            AuthorId = AuthService.CurrentUser.Id
+        };
+
+        await PostService.AddCommentAsync(comment);
+        newComment = new Comment();
+        await LoadPost();
+
+        addingComment = false;
+    }
+
+    private async Task DeleteComment(int commentId)
+    {
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null) return;
+
+        if (AuthService.CurrentUser.IsAdmin)
+        {
+            await AdminService.DeleteCommentAsync(commentId);
+        }
+        else
+        {
+            await PostService.DeleteCommentAsync(commentId, AuthService.CurrentUser.Id);
+        }
+
+        await LoadPost();
+    }
+
+    private void ShowReportDialog(Comment comment)
+    {
+        reportedComment = comment;
+        showReportModal = true;
+        reportReason = "";
+        reportDetails = "";
+    }
+
+    private void CloseReportDialog()
+    {
+        showReportModal = false;
+        reportedComment = null;
+    }
+
+    private async Task SubmitReport()
+    {
+        if (reportedComment == null || AuthService.CurrentUser == null || string.IsNullOrEmpty(reportReason))
+            return;
+
+        var report = new UserReport
+        {
+            ReportingUserId = AuthService.CurrentUser.Id,
+            ReportedUserId = reportedComment.AuthorId,
+            CommentId = reportedComment.Id,
+            Reason = reportReason,
+            Details = reportDetails
+        };
+
+        await AdminService.ReportUserAsync(report);
+        CloseReportDialog();
+    }
+
+    private async Task SharePost()
+    {
+        // In production, implement proper share functionality
+        await JS.InvokeVoidAsync("navigator.share", new
+        {
+            title = post?.Title,
+            text = TruncateText(post?.Content ?? "", 100),
+            url = Navigation.Uri
+        });
+    }
+
+    private string FormatContent(string content)
+    {
+        // Convert line breaks to paragraphs for better formatting
+        var paragraphs = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join("", paragraphs.Select(p => $"<p>{p}</p>"));
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.Now - dateTime;
+
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} minutes ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hours ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} days ago";
+
+        return dateTime.ToString("MMM dd, yyyy 'at' h:mm tt");
+    }
+}

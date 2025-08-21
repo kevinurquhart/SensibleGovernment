@@ -1,0 +1,353 @@
+﻿@using SensibleGovernment.Models
+@inject NavigationManager Navigation
+
+@if (Post != null)
+{
+    <article class="article-card @SizeClass" @onclick="NavigateToPost">
+        @if (Size != CardSize.Minimal)
+        {
+            <div class="article-image">
+                <img src="@ImageUrl" alt="@Post.Title">
+                @if (ShowTopic)
+                {
+                    <span class="topic-label @Post.Topic.ToLower()">@Post.Topic</span>
+                }
+            </div>
+        }
+
+        <div class="article-content">
+            @if (Size == CardSize.Minimal && ShowTopic)
+            {
+                <span class="topic-label-inline @Post.Topic.ToLower()">@Post.Topic</span>
+            }
+
+            <h3 class="article-title">@TruncateText(Post.Title, TitleLength)</h3>
+
+            @if (Size != CardSize.Minimal)
+            {
+                <p class="article-excerpt">@TruncateText(Post.Content, ExcerptLength)</p>
+            }
+
+            <div class="article-meta">
+                @if (ShowAuthor)
+                {
+                    <span class="author">@(Post.Author?.UserName ?? "Staff")</span>
+                }
+                <span class="time">@GetTimeAgo(Post.Created)</span>
+                @if (ShowStats && Size != CardSize.Minimal)
+                {
+                    <span class="stats">
+                        <i class="bi bi-chat"></i> @Post.Comments.Count
+                        <i class="bi bi-hand-thumbs-up ms-2"></i> @Post.Likes.Count
+                    </span>
+                }
+            </div>
+        </div>
+    </article>
+}
+
+<style>
+    .article-card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        transition: all 0.2s;
+        cursor: pointer;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+        .article-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        /* Hero size - full width featured */
+        .article-card.hero {
+            flex-direction: row;
+            min-height: 300px;
+        }
+
+            .article-card.hero .article-image {
+                width: 50%;
+                position: relative;
+            }
+
+            .article-card.hero .article-content {
+                padding: 30px;
+                width: 50%;
+            }
+
+            .article-card.hero .article-title {
+                font-size: 2rem;
+                line-height: 1.2;
+                margin-bottom: 15px;
+            }
+
+        /* Large size - main stories */
+        .article-card.large .article-image {
+            height: 200px;
+            position: relative;
+        }
+
+        .article-card.large .article-content {
+            padding: 20px;
+        }
+
+        .article-card.large .article-title {
+            font-size: 1.25rem;
+            line-height: 1.3;
+            margin-bottom: 10px;
+        }
+
+        /* Medium size - secondary stories */
+        .article-card.medium {
+            flex-direction: row;
+        }
+
+            .article-card.medium .article-image {
+                width: 40%;
+                min-height: 150px;
+                position: relative;
+            }
+
+            .article-card.medium .article-content {
+                padding: 15px;
+                width: 60%;
+            }
+
+            .article-card.medium .article-title {
+                font-size: 1.1rem;
+                line-height: 1.3;
+                margin-bottom: 8px;
+            }
+
+        /* Small size - grid items */
+        .article-card.small .article-image {
+            height: 120px;
+            position: relative;
+        }
+
+        .article-card.small .article-content {
+            padding: 12px;
+        }
+
+        .article-card.small .article-title {
+            font-size: 0.95rem;
+            line-height: 1.3;
+            margin-bottom: 5px;
+        }
+
+        /* Minimal size - list items */
+        .article-card.minimal {
+            border-left: 3px solid #c8102e;
+            padding: 10px;
+        }
+
+            .article-card.minimal .article-title {
+                font-size: 0.9rem;
+                line-height: 1.3;
+                margin-bottom: 5px;
+                font-weight: 500;
+            }
+
+    /* Common styles */
+    .article-image {
+        overflow: hidden;
+        background: #f5f5f5;
+    }
+
+        .article-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+    .article-card:hover .article-image img {
+        transform: scale(1.05);
+    }
+
+    .topic-label {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: rgba(255,255,255,0.95);
+        color: #333;
+    }
+
+    .topic-label-inline {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 5px;
+    }
+
+        .topic-label.news, .topic-label-inline.news {
+            background: #c8102e;
+            color: white;
+        }
+
+        .topic-label.health, .topic-label-inline.health {
+            background: #00a652;
+            color: white;
+        }
+
+        .topic-label.technology, .topic-label-inline.technology {
+            background: #0084c7;
+            color: white;
+        }
+
+        .topic-label.education, .topic-label-inline.education {
+            background: #7c4dff;
+            color: white;
+        }
+
+        .topic-label.sport, .topic-label-inline.sport {
+            background: #ff6b00;
+            color: white;
+        }
+
+        .topic-label.economy, .topic-label-inline.economy {
+            background: #ffd600;
+            color: #333;
+        }
+
+    .article-title {
+        font-family: 'Georgia', serif;
+        font-weight: 700;
+        color: #0f1419;
+        margin: 0;
+    }
+
+    .article-excerpt {
+        color: #536471;
+        line-height: 1.5;
+        margin: 10px 0;
+    }
+
+    .article-meta {
+        font-size: 0.875rem;
+        color: #8899a6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .article-meta .author {
+            font-weight: 500;
+            color: #536471;
+        }
+
+        .article-meta .stats {
+            margin-left: auto;
+        }
+
+    @@media (max-width: 768px) {
+        .article-card.hero, .article-card.medium
+
+    {
+        flex-direction: column;
+    }
+
+    .article-card.hero .article-image,
+    .article-card.hero .article-content,
+    .article-card.medium .article-image,
+    .article-card.medium .article-content {
+        width: 100%;
+    }
+
+    }
+</style>
+
+@code {
+    [Parameter] public Post? Post { get; set; }
+    [Parameter] public CardSize Size { get; set; } = CardSize.Medium;
+    [Parameter] public bool ShowTopic { get; set; } = true;
+    [Parameter] public bool ShowAuthor { get; set; } = true;
+    [Parameter] public bool ShowStats { get; set; } = true;
+
+    public enum CardSize
+    {
+        Hero,    // Featured story
+        Large,   // Main stories
+        Medium,  // Secondary stories
+        Small,   // Grid items
+        Minimal  // List items
+    }
+
+    private string SizeClass => Size.ToString().ToLower();
+
+    private string ImageUrl => !string.IsNullOrEmpty(Post?.ThumbnailImageUrl)
+        ? Post.ThumbnailImageUrl
+        : GetPlaceholderImage(Post?.Topic ?? "");
+
+    private int TitleLength => Size switch
+    {
+        CardSize.Hero => 100,
+        CardSize.Large => 80,
+        CardSize.Medium => 70,
+        CardSize.Small => 60,
+        CardSize.Minimal => 80,
+        _ => 70
+    };
+
+    private int ExcerptLength => Size switch
+    {
+        CardSize.Hero => 200,
+        CardSize.Large => 150,
+        CardSize.Medium => 100,
+        CardSize.Small => 80,
+        _ => 0
+    };
+
+    private void NavigateToPost()
+    {
+        if (Post != null)
+        {
+            Navigation.NavigateTo($"/post/{Post.Id}");
+        }
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.Now - dateTime;
+
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes}m ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours}h ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays}d ago";
+
+        return dateTime.ToString("d MMM");
+    }
+
+    private string GetPlaceholderImage(string topic)
+    {
+        return topic?.ToLower() switch
+        {
+            "sport" => "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&h=400&fit=crop",
+            "news" or "politics" => "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&h=400&fit=crop",
+            "technology" => "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=400&fit=crop",
+            "health" => "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=800&h=400&fit=crop",
+            "education" => "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=400&fit=crop",
+            "economy" => "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=400&fit=crop",
+            _ => "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=400&fit=crop"
+        };
+    }
+}

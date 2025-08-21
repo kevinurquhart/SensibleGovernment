@@ -1,0 +1,387 @@
+﻿@using SensibleGovernment.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+@rendermode InteractiveServer
+
+<header class="main-header">
+    <!-- Top bar with date and account -->
+    <div class="top-bar">
+        <div class="container-fluid px-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="date-time">@DateTime.Now.ToString("dddd, d MMMM yyyy")</span>
+                <div class="account-links">
+                    @if (AuthService.IsAuthenticated)
+                    {
+                        <span class="me-3">Welcome, @AuthService.CurrentUser?.UserName</span>
+                        @if (AuthService.CurrentUser?.IsAdmin == true)
+                        {
+                            <a href="/admin/dashboard" class="me-3">Admin</a>
+                            <a href="/admin/createpost" class="me-3">Write</a>
+                        }
+                        <button class="btn-link" @onclick="HandleLogout">Sign Out</button>
+                    }
+                    else
+                    {
+                        <a href="/login" class="me-3">Sign In</a>
+                        <a href="/register">Register</a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main header with branding -->
+    <div class="brand-header">
+        <div class="container-fluid px-4">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <div class="union-jack-accent"></div>
+                </div>
+                <div class="col-md-6 text-center">
+                    <a href="/" class="brand-link">
+                        <h1 class="brand-title">THE SENSIBLE CITIZEN</h1>
+                        <p class="brand-tagline">Accountability • Analysis • Action</p>
+                        <div class="brand-underline"></div>
+                    </a>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button class="search-toggle" @onclick="ToggleSearch">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation bar with topics -->
+    <nav class="main-nav">
+        <div class="container-fluid px-4">
+            <ul class="nav-topics">
+                <li class="@(currentPath == "/" ? "active" : "")">
+                    <a href="/">Home</a>
+                </li>
+                <li class="@(currentTopic == "News" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("News"))" style="cursor: pointer;">Politics</a>
+                </li>
+                <li class="@(currentTopic == "Economy" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("Economy"))" style="cursor: pointer;">Economy</a>
+                </li>
+                <li class="@(currentTopic == "Health" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("Health"))" style="cursor: pointer;">Health</a>
+                </li>
+                <li class="@(currentTopic == "Education" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("Education"))" style="cursor: pointer;">Education</a>
+                </li>
+                <li class="@(currentTopic == "Technology" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("Technology"))" style="cursor: pointer;">Technology</a>
+                </li>
+                <li class="@(currentTopic == "Sport" ? "active" : "")">
+                    <a @onclick="@(() => NavigateToTopic("Sport"))" style="cursor: pointer;">Sport</a>
+                </li>
+                <li class="opinion-link">
+                    <a @onclick="@(() => NavigateToTopic("Opinion"))" style="cursor: pointer;">Opinion</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Collapsible search bar -->
+    @if (showSearch)
+    {
+        <div class="search-bar-container">
+            <div class="container-fluid px-4">
+                <div class="search-bar">
+                    <input type="text" class="search-input" placeholder="Search stories..."
+                           @bind="searchQuery" @bind:event="oninput"
+                           @onkeyup="@(e => { if (e.Key == "Enter") PerformSearch(); })">
+                    <button class="search-button" @onclick="PerformSearch">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                    <button class="search-close" @onclick="ToggleSearch">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</header>
+
+<style>
+    .main-header {
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+
+    .top-bar {
+        background: #0f1419;
+        color: #8899a6;
+        padding: 8px 0;
+        font-size: 0.875rem;
+    }
+
+        .top-bar a, .top-bar .btn-link {
+            color: #8899a6;
+            text-decoration: none;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+            .top-bar a:hover, .top-bar .btn-link:hover {
+                color: white;
+            }
+
+    .brand-header {
+        padding: 30px 0;
+        border-bottom: 1px solid #e0e0e0;
+        position: relative;
+    }
+
+    .union-jack-accent {
+        width: 60px;
+        height: 40px;
+        background: linear-gradient(to bottom, #012169 0%, #012169 33%, white 33%, white 66%, #c8102e 66%, #c8102e 100%);
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .brand-link {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .brand-title {
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-weight: 900;
+        font-size: 2.5rem;
+        letter-spacing: 2px;
+        color: #0f1419;
+        margin: 0;
+    }
+
+    .brand-tagline {
+        font-size: 0.875rem;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: #c8102e;
+        margin: 10px 0 15px 0;
+        font-weight: 500;
+    }
+
+    .brand-underline {
+        width: 200px;
+        height: 3px;
+        background: linear-gradient(to right, #012169, #c8102e);
+        margin: 0 auto;
+    }
+
+    .search-toggle {
+        background: none;
+        border: 1px solid #ddd;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+        .search-toggle:hover {
+            background: #f5f5f5;
+            border-color: #333;
+        }
+
+    .main-nav {
+        background: white;
+        border-bottom: 3px solid #c8102e;
+    }
+
+    .nav-topics {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        gap: 0;
+    }
+
+        .nav-topics li {
+            position: relative;
+        }
+
+        .nav-topics a {
+            display: block;
+            padding: 12px 20px;
+            color: #333;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -3px;
+        }
+
+        .nav-topics li:hover a {
+            background: #f5f5f5;
+        }
+
+        .nav-topics li.active a {
+            color: #c8102e;
+            border-bottom-color: #c8102e;
+            background: #fafafa;
+        }
+
+    .opinion-link a {
+        color: #c8102e !important;
+        font-weight: 600;
+    }
+
+    .search-bar-container {
+        background: #f5f5f5;
+        border-bottom: 1px solid #ddd;
+        padding: 15px 0;
+        animation: slideDown 0.3s ease;
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 10px;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 10px 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .search-button, .search-close {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .search-button {
+        background: #c8102e;
+        color: white;
+    }
+
+        .search-button:hover {
+            background: #a00d24;
+        }
+
+    .search-close {
+        background: white;
+        border: 1px solid #ddd;
+    }
+
+    @@keyframes slideDown {
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    @@media (max-width: 768px) {
+        .brand-title
+
+    {
+        font-size: 1.5rem;
+    }
+
+    .nav-topics {
+        overflow-x: auto;
+        justify-content: flex-start;
+    }
+
+    .union-jack-accent {
+        display: none;
+    }
+
+    }
+</style>
+
+@code {
+    private bool showSearch = false;
+    private string searchQuery = "";
+    private string currentPath = "";
+    private string currentTopic = "All";
+
+    protected override void OnInitialized()
+    {
+        currentPath = Navigation.Uri;
+        Navigation.LocationChanged += OnLocationChanged;
+        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        currentPath = e.Location;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleLogout()
+    {
+        AuthService.Logout();
+        Navigation.NavigateTo("/");
+    }
+
+    private void ToggleSearch()
+    {
+        showSearch = !showSearch;
+        searchQuery = "";
+    }
+
+    private void PerformSearch()
+    {
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            Navigation.NavigateTo($"/?search={Uri.EscapeDataString(searchQuery)}");
+            showSearch = false;
+        }
+    }
+
+    private void NavigateToTopic(string topic)
+    {
+        currentTopic = topic;
+        if (topic == "All")
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        else
+        {
+            Navigation.NavigateTo($"/?topic={topic}", forceLoad: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
+    }
+}
