@@ -12,8 +12,8 @@ using SensibleGovernment.Data;
 namespace SensibleGovernment.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20250821153607_MoreClaudeChanges")]
-    partial class MoreClaudeChanges
+    [Migration("20250822073854_InitialSeed")]
+    partial class InitialSeed
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
