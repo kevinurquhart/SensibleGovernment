@@ -2,10 +2,13 @@
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
 @using SensibleGovernment.Components.Layout
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
 @inject PostService PostService
-@inject AuthService AuthService
+@inject CustomAuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
+@attribute [AllowAnonymous]
 
 <PageTitle>The Sensible Citizen - Accountability, Analysis, Action</PageTitle>
 
@@ -134,7 +137,7 @@
                     </aside>
 
                     <!-- Newsletter Signup -->
-                    @if (!AuthService.IsAuthenticated)
+                    @if (authState?.User.Identity?.IsAuthenticated != true)
                     {
                         <aside class="sidebar-section newsletter">
                             <h3 class="sidebar-title">Daily Briefing</h3>
@@ -180,8 +183,13 @@
     }
 
     @@keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
     }
 
     /* Breaking news banner */
@@ -217,9 +225,9 @@
         white-space: nowrap;
     }
 
-    .breaking-link:hover {
-        text-decoration: underline;
-    }
+        .breaking-link:hover {
+            text-decoration: underline;
+        }
 
     /* Content wrapper */
     .content-wrapper {
@@ -267,29 +275,29 @@
         padding-left: 0;
     }
 
-    .most-read-list li {
-        counter-increment: item;
-        display: flex;
-        align-items: flex-start;
-        margin-bottom: 12px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #e0e0e0;
-    }
+        .most-read-list li {
+            counter-increment: item;
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
 
-    .most-read-list li:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-        padding-bottom: 0;
-    }
+            .most-read-list li:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
 
-    .most-read-list li::before {
-        content: counter(item);
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #c8102e;
-        margin-right: 12px;
-        min-width: 30px;
-    }
+            .most-read-list li::before {
+                content: counter(item);
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #c8102e;
+                margin-right: 12px;
+                min-width: 30px;
+            }
 
     /* Government Watch */
     .government-watch {
@@ -297,10 +305,10 @@
         color: white;
     }
 
-    .government-watch .sidebar-title {
-        color: white;
-        border-bottom-color: #c8102e;
-    }
+        .government-watch .sidebar-title {
+            color: white;
+            border-bottom-color: #c8102e;
+        }
 
     .watch-content {
         display: flex;
@@ -332,9 +340,9 @@
         border: none;
     }
 
-    .newsletter .sidebar-title {
-        border-bottom-color: #0f1419;
-    }
+        .newsletter .sidebar-title {
+            border-bottom-color: #0f1419;
+        }
 
     .newsletter-text {
         font-size: 0.9rem;
@@ -353,10 +361,10 @@
         transition: background 0.2s;
     }
 
-    .btn-newsletter:hover {
-        background: #c8102e;
-        color: white;
-    }
+        .btn-newsletter:hover {
+            background: #c8102e;
+            color: white;
+        }
 
     /* Topic cloud */
     .topic-cloud {
@@ -377,11 +385,11 @@
         transition: all 0.2s;
     }
 
-    .topic-tag:hover {
-        background: #012169;
-        color: white;
-        border-color: #012169;
-    }
+        .topic-tag:hover {
+            background: #012169;
+            color: white;
+            border-color: #012169;
+        }
 
     .topic-count {
         opacity: 0.7;
@@ -410,136 +418,3 @@
     }
 </style>
 
-@code {
-    private bool loading = true;
-    private Post? breakingNews;
-    private Post? heroPost;
-    private List<Post> topStories = new();
-    private List<Post> opinionPosts = new();
-    private List<Post> moreNews = new();
-    private List<Post> mostReadPosts = new();
-    private List<Post> allPosts = new();
-
-    protected override async Task OnInitializedAsync()
-    {
-        // TEMPORARY - Generate correct hash
-        string correctHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
-        Console.WriteLine($"New hash for Password123!: {correctHash}");
-
-        await LoadPosts();
-        AuthService.OnAuthStateChanged += async () => 
-        {
-            await LoadPosts();
-            await InvokeAsync(StateHasChanged);
-        };
-    }
-
-    private async Task LoadPosts()
-    {
-        loading = true;
-        
-        // Get query parameters
-        var uri = new Uri(Navigation.Uri);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var topic = query["topic"];
-        var search = query["search"];
-
-        allPosts = await PostService.GetAllPostsAsync();
-
-        // Apply filters
-        var filteredPosts = allPosts.AsEnumerable();
-        
-        if (!string.IsNullOrEmpty(topic))
-        {
-            filteredPosts = filteredPosts.Where(p => p.Topic == topic);
-        }
-        
-        if (!string.IsNullOrEmpty(search))
-        {
-            var searchLower = search.ToLower();
-            filteredPosts = filteredPosts.Where(p => 
-                p.Title.ToLower().Contains(searchLower) ||
-                p.Content.ToLower().Contains(searchLower));
-        }
-
-        var posts = filteredPosts.ToList();
-
-        // Set breaking news (posts less than 2 hours old with high importance)
-        breakingNews = posts
-            .Where(p => (DateTime.Now - p.Created).TotalHours < 2 && p.IsFeatured)
-            .FirstOrDefault();
-
-        // Set hero post (most important recent story)
-        heroPost = posts
-            .Where(p => p != breakingNews)
-            .OrderByDescending(p => p.IsFeatured)
-            .ThenByDescending(p => p.Created)
-            .FirstOrDefault();
-
-        // Top stories (next 3 most recent, excluding hero and breaking)
-        topStories = posts
-            .Where(p => p != heroPost && p != breakingNews)
-            .OrderByDescending(p => p.Created)
-            .Take(3)
-            .ToList();
-
-        // Opinion posts (posts with substantial opinion content)
-        opinionPosts = posts
-            .Where(p => !string.IsNullOrEmpty(p.Opinion) && p != heroPost && p != breakingNews)
-            .OrderByDescending(p => p.Created)
-            .Take(4)
-            .ToList();
-
-        // More news (everything else)
-        var usedPosts = new[] { heroPost, breakingNews }
-            .Concat(topStories)
-            .Concat(opinionPosts)
-            .Where(p => p != null);
-
-        moreNews = posts
-            .Where(p => !usedPosts.Contains(p))
-            .OrderByDescending(p => p.Created)
-            .ToList();
-
-        // Most read (by view count)
-        mostReadPosts = allPosts
-            .OrderByDescending(p => p.ViewCount)
-            .Take(5)
-            .ToList();
-
-        loading = false;
-    }
-
-    private int GetDaysInPower()
-    {
-        // Days since last election (example: July 4, 2024)
-        var electionDate = new DateTime(2024, 7, 4);
-        return (DateTime.Now - electionDate).Days;
-    }
-
-    private int GetDaysToElection()
-    {
-        // Next election (max 5 years from last)
-        var nextElection = new DateTime(2029, 7, 4);
-        return Math.Max(0, (nextElection - DateTime.Now).Days);
-    }
-
-    private List<(string Topic, int Count)> GetTopicCounts()
-    {
-        var topics = new[] { "Politics", "Economy", "Health", "Education", "Technology", "Sport" };
-        return topics
-            .Select(t => (Topic: t, Count: allPosts.Count(p => p.Topic == t || (t == "Politics" && p.Topic == "News"))))
-            .Where(x => x.Count > 0)
-            .OrderByDescending(x => x.Count)
-            .ToList();
-    }
-
-    public void Dispose()
-    {
-        AuthService.OnAuthStateChanged -= async () => 
-        {
-            await LoadPosts();
-            await InvokeAsync(StateHasChanged);
-        };
-    }
-}

@@ -1,6 +1,7 @@
 ﻿@using SensibleGovernment.Services
 @using System.ComponentModel.DataAnnotations
-@inject AuthService AuthService
+@using Microsoft.AspNetCore.Components.Authorization
+@inject CustomAuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 @implements IDisposable
 @rendermode InteractiveServer
@@ -19,9 +20,9 @@
                         <i class="bi bi-house-door"></i> Home
                     </NavLink>
                 </li>
-                @if (AuthService.IsAuthenticated)
+                @if (authState?.User.Identity?.IsAuthenticated == true)
                 {
-                    @if (AuthService.CurrentUser?.IsAdmin == true)
+                    @if (authState.User.IsInRole("Admin"))
                     {
                         <li class="nav-item">
                             <NavLink class="nav-link" href="/admin/createpost">
@@ -38,11 +39,11 @@
             </ul>
 
             <ul class="navbar-nav">
-                @if (AuthService.IsAuthenticated)
+                @if (authState?.User.Identity?.IsAuthenticated == true)
                 {
                     <li class="nav-item">
                         <span class="navbar-text me-3">
-                            <i class="bi bi-person-circle"></i> Welcome, @AuthService.CurrentUser?.UserName!
+                            <i class="bi bi-person-circle"></i> Welcome, @authState.User.Identity?.Name!
                         </span>
                     </li>
                     <li class="nav-item">
@@ -69,25 +70,3 @@
     </div>
 </nav>
 
-@code {
-    protected override void OnInitialized()
-    {
-        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
-    }
-
-    private void HandleAuthStateChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void HandleLogout()
-    {
-        AuthService.Logout();
-        Navigation.NavigateTo("/");
-    }
-
-    public void Dispose()
-    {
-        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
-    }
-}

@@ -1,12 +1,16 @@
 ﻿@page "/post/{PostId:int}"
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
 @inject PostService PostService
+@inject CustomAuthenticationStateProvider AuthProvider
 @inject AuthService AuthService
 @inject AdminService AdminService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @rendermode InteractiveServer
+@attribute [AllowAnonymous]
 
 <PageTitle>@(post?.Title ?? "Loading...") - Central News</PageTitle>
 
@@ -157,7 +161,7 @@ else
                     <div class="content-section text-center my-4">
                         <h5 class="mb-3">Enjoyed this article?</h5>
                         <div class="d-flex justify-content-center gap-3">
-                            @if (AuthService.IsAuthenticated)
+                            @if (authState?.User.Identity?.IsAuthenticated == true)
                             {
                                 <button class="btn @(userHasLiked ? "btn-primary" : "btn-outline-primary")"
                                         @onclick="ToggleLike">
@@ -183,13 +187,13 @@ else
                             <i class="bi bi-chat-left-text"></i> Discussion (@post.Comments.Count)
                         </h3>
 
-                        @if (AuthService.IsAuthenticated)
+                        @if (authState?.User.Identity?.IsAuthenticated == true)
                         {
-                            @if (AuthService.CurrentUser?.IsActive == true)
+                            @if (isUserActive)
                             {
                                 <div class="mb-4">
                                     <div class="d-flex align-items-start">
-                                        <img src="https://ui-avatars.com/api/?name=@AuthService.CurrentUser.UserName&background=random"
+                                        <img src="https://ui-avatars.com/api/?name=@authState.User.Identity?.Name&background=random"
                                              class="rounded-circle me-3" width="48" height="48" alt="Your avatar">
                                         <div class="flex-grow-1">
                                             <EditForm Model="@newComment" OnValidSubmit="AddComment">
@@ -248,16 +252,16 @@ else
                                                     <small class="text-muted">@GetTimeAgo(comment.Created)</small>
                                                 </div>
                                                 <div>
-                                                    @if (AuthService.IsAuthenticated)
+                                                    @if (authState?.User.Identity?.IsAuthenticated == true)
                                                     {
-                                                        @if (AuthService.CurrentUser?.Id == comment.AuthorId || AuthService.CurrentUser?.IsAdmin == true)
+                                                        @if (currentUserId == comment.AuthorId || authState.User.IsInRole("Admin"))
                                                         {
                                                             <button class="btn btn-sm btn-outline-danger me-1"
                                                                     @onclick="() => DeleteComment(comment.Id)">
                                                                 <i class="bi bi-trash"></i>
                                                             </button>
                                                         }
-                                                        @if (AuthService.CurrentUser?.Id != comment.AuthorId)
+                                                        @if (currentUserId != comment.AuthorId)
                                                         {
                                                             <button class="btn btn-sm btn-outline-warning"
                                                                     @onclick="() => ShowReportDialog(comment)">
@@ -327,170 +331,7 @@ else
     </div>
 }
 
-@code {
-    [Parameter] public int PostId { get; set; }
 
-    private Post? post;
-    private Comment newComment = new();
-    private bool loading = true;
-    private bool addingComment = false;
-    private bool userHasLiked = false;
-
-    // Report modal
-    private bool showReportModal = false;
-    private Comment? reportedComment;
-    private string reportReason = "";
-    private string reportDetails = "";
-    private List<string> reportReasons = new()
-    {
-        "Spam or advertising",
-        "Offensive or inappropriate",
-        "Harassment or bullying",
-        "Misinformation",
-        "Other"
-    };
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadPost();
-    }
-
-    private async Task LoadPost()
-    {
-        loading = true;
-        post = await PostService.GetPostByIdAsync(PostId);
-
-        if (post != null)
-        {
-            // Increment view count
-            post.ViewCount++;
-            // In production, you'd save this to the database
-
-            if (AuthService.IsAuthenticated && AuthService.CurrentUser != null)
-            {
-                userHasLiked = post.Likes.Any(l => l.UserId == AuthService.CurrentUser.Id);
-            }
-        }
-
-        loading = false;
-    }
-
-    private async Task ToggleLike()
-    {
-        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null) return;
-
-        var liked = await PostService.ToggleLikeAsync(PostId, AuthService.CurrentUser.Id);
-        userHasLiked = liked;
-        await LoadPost();
-    }
-
-    private async Task AddComment()
-    {
-        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null || string.IsNullOrWhiteSpace(newComment.Content))
-            return;
-
-        addingComment = true;
-
-        var comment = new Comment
-        {
-            Content = newComment.Content,
-            PostId = PostId,
-            AuthorId = AuthService.CurrentUser.Id
-        };
-
-        await PostService.AddCommentAsync(comment);
-        newComment = new Comment();
-        await LoadPost();
-
-        addingComment = false;
-    }
-
-    private async Task DeleteComment(int commentId)
-    {
-        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null) return;
-
-        if (AuthService.CurrentUser.IsAdmin)
-        {
-            await AdminService.DeleteCommentAsync(commentId);
-        }
-        else
-        {
-            await PostService.DeleteCommentAsync(commentId, AuthService.CurrentUser.Id);
-        }
-
-        await LoadPost();
-    }
-
-    private void ShowReportDialog(Comment comment)
-    {
-        reportedComment = comment;
-        showReportModal = true;
-        reportReason = "";
-        reportDetails = "";
-    }
-
-    private void CloseReportDialog()
-    {
-        showReportModal = false;
-        reportedComment = null;
-    }
-
-    private async Task SubmitReport()
-    {
-        if (reportedComment == null || AuthService.CurrentUser == null || string.IsNullOrEmpty(reportReason))
-            return;
-
-        var report = new UserReport
-        {
-            ReportingUserId = AuthService.CurrentUser.Id,
-            ReportedUserId = reportedComment.AuthorId,
-            CommentId = reportedComment.Id,
-            Reason = reportReason,
-            Details = reportDetails
-        };
-
-        await AdminService.ReportUserAsync(report);
-        CloseReportDialog();
-    }
-
-    private async Task SharePost()
-    {
-        // In production, implement proper share functionality
-        await JS.InvokeVoidAsync("navigator.share", new
-        {
-            title = post?.Title,
-            text = TruncateText(post?.Content ?? "", 100),
-            url = Navigation.Uri
-        });
-    }
-
-    private string FormatContent(string content)
-    {
-        // Convert line breaks to paragraphs for better formatting
-        var paragraphs = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        return string.Join("", paragraphs.Select(p => $"<p>{p}</p>"));
-    }
-
-    private string TruncateText(string text, int maxLength)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
-    }
-
-    private string GetTimeAgo(DateTime dateTime)
-    {
-        var timeSpan = DateTime.Now - dateTime;
-
-        if (timeSpan.TotalMinutes < 60)
-            return $"{(int)timeSpan.TotalMinutes} minutes ago";
-        if (timeSpan.TotalHours < 24)
-            return $"{(int)timeSpan.TotalHours} hours ago";
-        if (timeSpan.TotalDays < 7)
-            return $"{(int)timeSpan.TotalDays} days ago";
-
-        return dateTime.ToString("MMM dd, yyyy 'at' h:mm tt");
-    }
-}
 
 <style>
     /* Stylish gradient header without image */

@@ -1,5 +1,6 @@
 ﻿@using SensibleGovernment.Services
-@inject AuthService AuthService
+@using Microsoft.AspNetCore.Components.Authorization
+@inject CustomAuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 @implements IDisposable
 @rendermode InteractiveServer
@@ -11,10 +12,10 @@
             <div class="d-flex justify-content-between align-items-center">
                 <span class="date-time">@DateTime.Now.ToString("dddd, d MMMM yyyy")</span>
                 <div class="account-links">
-                    @if (AuthService.IsAuthenticated)
+                    @if (authState?.User.Identity?.IsAuthenticated == true)
                     {
-                        <span class="me-3">Welcome, @AuthService.CurrentUser?.UserName</span>
-                        @if (AuthService.CurrentUser?.IsAdmin == true)
+                        <span class="me-3">Welcome, @authState.User.Identity?.Name</span>
+                        @if (authState.User.IsInRole("Admin"))
                         {
                             <a href="/admin/dashboard" class="me-3">Admin</a>
                             <a href="/admin/createpost" class="me-3">Write</a>
@@ -316,100 +317,30 @@
     }
 
     @@keyframes slideDown {
-        from
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
 
-    {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     @@media (max-width: 768px) {
-        .brand-title
+        .brand-title {
+            font-size: 1.5rem;
+        }
 
-    {
-        font-size: 1.5rem;
-    }
+        .nav-topics {
+            overflow-x: auto;
+            justify-content: flex-start;
+        }
 
-    .nav-topics {
-        overflow-x: auto;
-        justify-content: flex-start;
-    }
-
-    .union-jack-accent {
-        display: none;
-    }
-
+        .union-jack-accent {
+            display: none;
+        }
     }
 </style>
 
-@code {
-    private bool showSearch = false;
-    private string searchQuery = "";
-    private string currentPath = "";
-    private string currentTopic = "All";
-
-    protected override void OnInitialized()
-    {
-        currentPath = Navigation.Uri;
-        Navigation.LocationChanged += OnLocationChanged;
-        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
-    }
-
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-    {
-        currentPath = e.Location;
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void HandleAuthStateChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void HandleLogout()
-    {
-        AuthService.Logout();
-        Navigation.NavigateTo("/");
-    }
-
-    private void ToggleSearch()
-    {
-        showSearch = !showSearch;
-        searchQuery = "";
-    }
-
-    private void PerformSearch()
-    {
-        if (!string.IsNullOrWhiteSpace(searchQuery))
-        {
-            Navigation.NavigateTo($"/?search={Uri.EscapeDataString(searchQuery)}");
-            showSearch = false;
-        }
-    }
-
-    private void NavigateToTopic(string topic)
-    {
-        currentTopic = topic;
-        if (topic == "All")
-        {
-            Navigation.NavigateTo("/", forceLoad: true);
-        }
-        else
-        {
-            Navigation.NavigateTo($"/?topic={topic}", forceLoad: true);
-        }
-    }
-
-    public void Dispose()
-    {
-        Navigation.LocationChanged -= OnLocationChanged;
-        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
-    }
-}

@@ -1,302 +1,251 @@
 ﻿@page "/admin/dashboard"
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
 @inject AdminService AdminService
-@inject AuthService AuthService
+@inject CustomAuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
+@attribute [Authorize(Policy = "AdminOnly")]
 
-<PageTitle>Admin Dashboard - Central News</PageTitle>
+<PageTitle>Admin Dashboard - The Sensible Citizen</PageTitle>
 
-@if (!AuthService.IsAuthenticated || AuthService.CurrentUser?.IsAdmin != true)
-{
-    <div class="container py-5">
-        <div class="alert alert-danger">
-            <h4>Access Denied</h4>
-            <p>You must be an administrator to access this page.</p>
-            <a href="/" class="btn btn-primary">Return to Home</a>
-        </div>
-    </div>
-}
-else
-{
-    <div class="container-fluid py-4">
-        <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Admin Dashboard</h1>
+<div class="container-fluid py-4">
+    <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Admin Dashboard</h1>
 
-        <!-- Stats Cards -->
-        @if (stats != null)
-        {
-            <div class="row mb-4">
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-primary">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Users</h5>
-                            <p class="card-text display-6">@stats.TotalUsers</p>
-                            <small>@stats.ActiveUsers active</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-success">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Posts</h5>
-                            <p class="card-text display-6">@stats.TotalPosts</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-info">
-                        <div class="card-body">
-                            <h5 class="card-title">Total Comments</h5>
-                            <p class="card-text display-6">@stats.TotalComments</p>
-                            <small>@stats.CommentsToday today</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <div class="card text-white bg-warning">
-                        <div class="card-body">
-                            <h5 class="card-title">Pending Reports</h5>
-                            <p class="card-text display-6">@stats.PendingReports</p>
-                        </div>
+    <!-- Stats Cards -->
+    @if (stats != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Users</h5>
+                        <p class="card-text display-6">@stats.TotalUsers</p>
+                        <small>@stats.ActiveUsers active</small>
                     </div>
                 </div>
             </div>
-        }
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Posts</h5>
+                        <p class="card-text display-6">@stats.TotalPosts</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Comments</h5>
+                        <p class="card-text display-6">@stats.TotalComments</p>
+                        <small>@stats.CommentsToday today</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h5 class="card-title">Pending Reports</h5>
+                        <p class="card-text display-6">@stats.PendingReports</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-3">
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "users" ? "active" : "")" @onclick="@(() => activeTab = "users")">
-                    <i class="bi bi-people"></i> Users
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "reports" ? "active" : "")" @onclick="@(() => activeTab = "reports")">
-                    <i class="bi bi-flag"></i> Reports (@(pendingReports?.Count ?? 0))
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "comments" ? "active" : "")" @onclick="@(() => activeTab = "comments")">
-                    <i class="bi bi-chat-dots"></i> Recent Comments
-                </button>
-            </li>
-        </ul>
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "users" ? "active" : "")" @onclick="@(() => activeTab = "users")">
+                <i class="bi bi-people"></i> Users
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "reports" ? "active" : "")" @onclick="@(() => activeTab = "reports")">
+                <i class="bi bi-flag"></i> Reports (@(pendingReports?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "comments" ? "active" : "")" @onclick="@(() => activeTab = "comments")">
+                <i class="bi bi-chat-dots"></i> Recent Comments
+            </button>
+        </li>
+    </ul>
 
-        <!-- Tab Content -->
-        <div class="card">
-            <div class="card-body">
-                @switch (activeTab)
-                {
-                    case "users":
-                        <h5 class="card-title mb-3">User Management</h5>
-                        @if (users == null)
-                        {
-                            <div class="spinner-border" role="status"></div>
-                        }
-                        else
-                        {
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
+    <!-- Tab Content -->
+    <div class="card">
+        <div class="card-body">
+            @switch (activeTab)
+            {
+                case "users":
+                    <h5 class="card-title mb-3">User Management</h5>
+                    @if (users == null)
+                    {
+                        <div class="spinner-border" role="status"></div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Joined</th>
+                                        <th>Posts</th>
+                                        <th>Comments</th>
+                                        <th>Reports</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var user in users)
+                                    {
                                         <tr>
-                                            <th>Username</th>
-                                            <th>Email</th>
-                                            <th>Joined</th>
-                                            <th>Posts</th>
-                                            <th>Comments</th>
-                                            <th>Reports</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
+                                            <td>
+                                                @user.UserName
+                                                @if (user.IsAdmin)
+                                                {
+                                                    <span class="badge bg-danger ms-1">Admin</span>
+                                                }
+                                            </td>
+                                            <td>@user.Email</td>
+                                            <td>@user.Created.ToString("MMM dd, yyyy")</td>
+                                            <td>@user.Posts.Count</td>
+                                            <td>@user.Comments.Count</td>
+                                            <td>
+                                                @if (user.ReportsAgainst.Any())
+                                                {
+                                                    <span class="text-warning">@user.ReportsAgainst.Count</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">0</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (user.IsActive)
+                                                {
+                                                    <span class="badge bg-success">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger">Suspended</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (!user.IsAdmin)
+                                                {
+                                                    <button class="btn btn-sm @(user.IsActive ? "btn-warning" : "btn-success")"
+                                                            @onclick="() => ToggleUserStatus(user.Id)">
+                                                        @(user.IsActive ? "Suspend" : "Activate")
+                                                    </button>
+                                                }
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var user in users)
-                                        {
-                                            <tr>
-                                                <td>
-                                                    @user.UserName
-                                                    @if (user.IsAdmin)
-                                                    {
-                                                        <span class="badge bg-danger ms-1">Admin</span>
-                                                    }
-                                                </td>
-                                                <td>@user.Email</td>
-                                                <td>@user.Created.ToString("MMM dd, yyyy")</td>
-                                                <td>@user.Posts.Count</td>
-                                                <td>@user.Comments.Count</td>
-                                                <td>
-                                                    @if (user.ReportsAgainst.Any())
-                                                    {
-                                                        <span class="text-warning">@user.ReportsAgainst.Count</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted">0</span>
-                                                    }
-                                                </td>
-                                                <td>
-                                                    @if (user.IsActive)
-                                                    {
-                                                        <span class="badge bg-success">Active</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="badge bg-danger">Suspended</span>
-                                                    }
-                                                </td>
-                                                <td>
-                                                    @if (!user.IsAdmin)
-                                                    {
-                                                        <button class="btn btn-sm @(user.IsActive ? "btn-warning" : "btn-success")"
-                                                                @onclick="() => ToggleUserStatus(user.Id)">
-                                                            @(user.IsActive ? "Suspend" : "Activate")
-                                                        </button>
-                                                    }
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                        break;
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    break;
 
-                    case "reports":
-                        <h5 class="card-title mb-3">User Reports</h5>
-                        @if (pendingReports == null)
+                case "reports":
+                    <h5 class="card-title mb-3">User Reports</h5>
+                    @if (pendingReports == null)
+                    {
+                        <div class="spinner-border" role="status"></div>
+                    }
+                    else if (!pendingReports.Any())
+                    {
+                        <p class="text-muted">No pending reports</p>
+                    }
+                    else
+                    {
+                        @foreach (var report in pendingReports)
                         {
-                            <div class="spinner-border" role="status"></div>
-                        }
-                        else if (!pendingReports.Any())
-                        {
-                            <p class="text-muted">No pending reports</p>
-                        }
-                        else
-                        {
-                            @foreach (var report in pendingReports)
-                            {
-                                <div class="border rounded p-3 mb-3">
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <h6>Report #@report.Id</h6>
-                                            <p class="mb-1"><strong>Reporter:</strong> @report.ReportingUser?.UserName</p>
-                                            <p class="mb-1"><strong>Reported User:</strong> @report.ReportedUser?.UserName</p>
-                                            <p class="mb-1"><strong>Reason:</strong> @report.Reason</p>
-                                            @if (!string.IsNullOrEmpty(report.Details))
-                                            {
-                                                <p class="mb-1"><strong>Details:</strong> @report.Details</p>
-                                            }
-                                            @if (report.Comment != null)
-                                            {
-                                                <div class="mt-2 p-2 bg-light rounded">
-                                                    <strong>Comment:</strong><br />
-                                                    @report.Comment.Content
-                                                </div>
-                                            }
-                                            <p class="text-muted small mt-2">Reported: @report.Created.ToString("MMM dd, yyyy h:mm tt")</p>
-                                        </div>
-                                        <div class="col-md-4 text-end">
-                                            <button class="btn btn-success btn-sm me-1" onclick="@(() => ResolveReport(report.Id, "Valid"))">
-                                                <i class="bi bi-check"></i> Valid
-                                            </button>
-                                            <button class="btn btn-danger btn-sm" onclick="@(() => ResolveReport(report.Id, "Invalid"))">
-                                                <i class="bi bi-x"></i> Invalid
-                                            </button>
-                                        </div>
+                            <div class="border rounded p-3 mb-3">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h6>Report #@report.Id</h6>
+                                        <p class="mb-1"><strong>Reporter:</strong> @report.ReportingUser?.UserName</p>
+                                        <p class="mb-1"><strong>Reported User:</strong> @report.ReportedUser?.UserName</p>
+                                        <p class="mb-1"><strong>Reason:</strong> @report.Reason</p>
+                                        @if (!string.IsNullOrEmpty(report.Details))
+                                        {
+                                            <p class="mb-1"><strong>Details:</strong> @report.Details</p>
+                                        }
+                                        @if (report.Comment != null)
+                                        {
+                                            <div class="mt-2 p-2 bg-light rounded">
+                                                <strong>Comment:</strong><br />
+                                                @report.Comment.Content
+                                            </div>
+                                        }
+                                        <p class="text-muted small mt-2">Reported: @report.Created.ToString("MMM dd, yyyy h:mm tt")</p>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <button class="btn btn-success btn-sm me-1" @onclick="@(() => ResolveReport(report.Id, "Valid"))">
+                                            <i class="bi bi-check"></i> Valid
+                                        </button>
+                                        <button class="btn btn-danger btn-sm" @onclick="@(() => ResolveReport(report.Id, "Invalid"))">
+                                            <i class="bi bi-x"></i> Invalid
+                                        </button>
                                     </div>
                                 </div>
-                            }
-                        }
-                        break;
-
-                    case "comments":
-                        <h5 class="card-title mb-3">Recent Comments (Last 7 Days)</h5>
-                        @if (recentComments == null)
-                        {
-                            <div class="spinner-border" role="status"></div>
-                        }
-                        else if (!recentComments.Any())
-                        {
-                            <p class="text-muted">No recent comments</p>
-                        }
-                        else
-                        {
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>User</th>
-                                            <th>Post</th>
-                                            <th>Comment</th>
-                                            <th>Date</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var comment in recentComments)
-                                        {
-                                            <tr>
-                                                <td>@comment.Author?.UserName</td>
-                                                <td>@comment.Post?.Title</td>
-                                                <td>@(comment.Content.Length > 100 ? comment.Content.Substring(0, 100) + "..." : comment.Content)</td>
-                                                <td>@comment.Created.ToString("MMM dd h:mm tt")</td>
-                                                <td>
-                                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteComment(comment.Id)">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
                             </div>
                         }
-                        break;
-                }
-            </div>
+                    }
+                    break;
+
+                case "comments":
+                    <h5 class="card-title mb-3">Recent Comments (Last 7 Days)</h5>
+                    @if (recentComments == null)
+                    {
+                        <div class="spinner-border" role="status"></div>
+                    }
+                    else if (!recentComments.Any())
+                    {
+                        <p class="text-muted">No recent comments</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Post</th>
+                                        <th>Comment</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var comment in recentComments)
+                                    {
+                                        <tr>
+                                            <td>@comment.Author?.UserName</td>
+                                            <td>@comment.Post?.Title</td>
+                                            <td>@(comment.Content.Length > 100 ? comment.Content.Substring(0, 100) + "..." : comment.Content)</td>
+                                            <td>@comment.Created.ToString("MMM dd h:mm tt")</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteComment(comment.Id)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    break;
+            }
         </div>
     </div>
-}
+</div>
 
-@code {
-    private string activeTab = "users";
-    private AdminDashboardStats? stats;
-    private List<User>? users;
-    private List<UserReport>? pendingReports;
-    private List<Comment>? recentComments;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!AuthService.IsAuthenticated || AuthService.CurrentUser?.IsAdmin != true)
-            return;
-
-        await LoadDashboard();
-    }
-
-    private async Task LoadDashboard()
-    {
-        stats = await AdminService.GetDashboardStatsAsync();
-        users = await AdminService.GetAllUsersAsync();
-        pendingReports = await AdminService.GetPendingReportsAsync();
-        recentComments = await AdminService.GetRecentCommentsAsync();
-    }
-
-    private async Task ToggleUserStatus(int userId)
-    {
-        await AdminService.ToggleUserStatusAsync(userId);
-        await LoadDashboard();
-    }
-
-    private async Task ResolveReport(int reportId, string resolution)
-    {
-        await AdminService.ResolveReportAsync(reportId, resolution);
-        await LoadDashboard();
-    }
-
-    private async Task DeleteComment(int commentId)
-    {
-        await AdminService.DeleteCommentAsync(commentId);
-        await LoadDashboard();
-    }
-}
