@@ -27,38 +27,67 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
     {
         try
         {
-            // Check if we have a stored session
-            var userSessionResult = await _localStorage.GetAsync<UserSession>("userSession");
+            _logger.LogInformation("GetAuthenticationStateAsync called");
+
+            // Always check localStorage - don't cache across different calls
+            ProtectedBrowserStorageResult<UserSession> userSessionResult;
+            try
+            {
+                userSessionResult = await _localStorage.GetAsync<UserSession>("userSession");
+                _logger.LogInformation($"LocalStorage read. Success: {userSessionResult.Success}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading from localStorage");
+                return new AuthenticationState(_anonymous);
+            }
 
             if (!userSessionResult.Success || userSessionResult.Value == null)
             {
+                _logger.LogInformation("No user session found in localStorage");
                 return new AuthenticationState(_anonymous);
             }
 
             var userSession = userSessionResult.Value;
+            _logger.LogInformation($"Session found for user: {userSession.UserName}, IsAdmin: {userSession.IsAdmin}");
 
             // Check if session is expired
             if (userSession.ExpiresAt < DateTime.UtcNow)
             {
+                _logger.LogWarning($"Session expired for user {userSession.UserName}");
                 await _localStorage.DeleteAsync("userSession");
                 return new AuthenticationState(_anonymous);
             }
 
-            // Validate the session is still valid (user not suspended, etc.)
-            var user = await _authService.GetUserByIdAsync(userSession.UserId);
-            if (user == null || !user.IsActive)
+            // For performance, we trust the session data instead of hitting the DB every time
+            // Only validate against DB on login or when explicitly needed
+
+            // Create claims principal from session data
+            var claims = new List<Claim>
             {
-                await _localStorage.DeleteAsync("userSession");
-                return new AuthenticationState(_anonymous);
+                new Claim(ClaimTypes.NameIdentifier, userSession.UserId.ToString()),
+                new Claim(ClaimTypes.Name, userSession.UserName),
+                new Claim(ClaimTypes.Email, userSession.Email),
+                new Claim("IsActive", "True"),
+                new Claim(ClaimTypes.Role, "User")
+            };
+
+            if (userSession.IsAdmin)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+                _logger.LogInformation($"Admin role added for user {userSession.UserName}");
             }
 
-            // Create claims principal
-            var claimsPrincipal = CreateClaimsPrincipal(user);
-            return new AuthenticationState(claimsPrincipal);
+            var identity = new ClaimsIdentity(claims, "Custom");
+            var principal = new ClaimsPrincipal(identity);
+
+            _logger.LogInformation($"Returning auth state for {userSession.UserName}, Roles: {string.Join(", ", claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value))}");
+
+            return new AuthenticationState(principal);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting authentication state");
+            _logger.LogError(ex, "Unexpected error in GetAuthenticationStateAsync");
             return new AuthenticationState(_anonymous);
         }
     }
@@ -71,27 +100,34 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
 
             if (!success)
             {
+                _logger.LogWarning($"Login failed for {email}: {message}");
                 return false;
             }
 
             var user = _authService.CurrentUser;
-            if (user == null) return false;
+            if (user == null)
+            {
+                _logger.LogError("Login succeeded but CurrentUser is null");
+                return false;
+            }
 
-            // Create and store session
+            // Create and store session with extended expiry
             var userSession = new UserSession
             {
                 UserId = user.Id,
                 Email = user.Email,
                 UserName = user.UserName,
                 IsAdmin = user.IsAdmin,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(30) // 30 minute session
+                ExpiresAt = DateTime.UtcNow.AddHours(8) // 8 hour session
             };
 
             await _localStorage.SetAsync("userSession", userSession);
 
-            // Update authentication state
-            var claimsPrincipal = CreateClaimsPrincipal(user);
-            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(claimsPrincipal)));
+            _logger.LogInformation($"Session stored for user: {user.UserName}, IsAdmin: {user.IsAdmin}, Expires: {userSession.ExpiresAt}");
+
+            // Notify that auth state has changed
+            var authState = await GetAuthenticationStateAsync();
+            NotifyAuthenticationStateChanged(Task.FromResult(authState));
 
             return true;
         }
@@ -108,7 +144,11 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
         {
             _authService.Logout();
             await _localStorage.DeleteAsync("userSession");
-            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_anonymous)));
+
+            var authState = new AuthenticationState(_anonymous);
+            NotifyAuthenticationStateChanged(Task.FromResult(authState));
+
+            _logger.LogInformation("User logged out and session cleared");
         }
         catch (Exception ex)
         {
@@ -135,28 +175,6 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
             _logger.LogError(ex, "Error during registration");
             return false;
         }
-    }
-
-    private ClaimsPrincipal CreateClaimsPrincipal(User user)
-    {
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim("IsActive", user.IsActive.ToString()),
-            new Claim("Created", user.Created.ToString())
-        };
-
-        if (user.IsAdmin)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
-        }
-
-        claims.Add(new Claim(ClaimTypes.Role, "User"));
-
-        var identity = new ClaimsIdentity(claims, "Custom");
-        return new ClaimsPrincipal(identity);
     }
 
     // Helper class for session storage

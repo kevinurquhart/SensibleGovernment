@@ -10,6 +10,12 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add user secrets in development
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>();
+}
+
 builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -25,6 +31,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Add HttpContext accessor for IP tracking
 builder.Services.AddHttpContextAccessor();
+
+//// Add session support - MUST BE BEFORE AddAuthentication
+//builder.Services.AddDistributedMemoryCache(); // For session storage
+//builder.Services.AddSession(options =>
+//{
+//    options.IdleTimeout = TimeSpan.FromMinutes(30);
+//    options.Cookie.HttpOnly = true;
+//    options.Cookie.IsEssential = true;
+//    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+//    options.Cookie.SameSite = SameSiteMode.Strict;
+//    options.Cookie.Name = "SensibleGov.Session";
+//});
 
 // Add data protection for secure storage
 builder.Services.AddDataProtection()
@@ -52,8 +70,12 @@ builder.Services.AddAuthentication(options =>
 // Add authorization with policies
 builder.Services.AddAuthorization(options =>
 {
+    // Change this line to use Role instead of RequireRole
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("ActiveUser", policy => policy.RequireClaim("IsActive", "True"));
+
+    // Optional: Add a default policy
+    options.FallbackPolicy = null; // Allow anonymous by default
 });
 
 // Add Blazor authentication
@@ -150,20 +172,17 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseRateLimiter();
 
+//// Add session middleware - MUST BE BEFORE UseAuthentication
+//app.UseSession();
+
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.UseAntiforgery();
 
+// Map Razor components WITHOUT requiring authorization globally
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .RequireAuthorization(); // Require auth for all components by default
-
-// Public pages that don't require auth
-app.MapGet("/", () => Results.Redirect("/"));
-app.MapGet("/login", () => Results.Redirect("/login"));
-app.MapGet("/register", () => Results.Redirect("/register"));
+    .AddInteractiveServerRenderMode();
 
 app.Run();

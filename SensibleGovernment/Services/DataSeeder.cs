@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SensibleGovernment.Models;
+using BCrypt.Net;
 
 namespace SensibleGovernment.Data;
 
@@ -14,17 +15,36 @@ public static class DataSeeder
         if (await context.Users.AnyAsync())
             return;
 
-        // Create admin user
+        // Create admin user with proper password hash
         var adminUser = new User
         {
             UserName = "Admin",
             Email = "admin@centralnews.com",
+            // Hash the password "Admin123!" - you should change this!
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!", BCrypt.Net.BCrypt.GenerateSalt(12)),
             IsAdmin = true,
             IsActive = true,
+            EmailConfirmed = true, // Set as confirmed for admin
             Created = DateTime.Now
         };
 
         context.Users.Add(adminUser);
+        await context.SaveChangesAsync();
+
+        // Create a sample regular user
+        var sampleUser = new User
+        {
+            UserName = "JohnDoe",
+            Email = "john@example.com",
+            // Hash the password "Password123!" - you should change this!
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!", BCrypt.Net.BCrypt.GenerateSalt(12)),
+            IsAdmin = false,
+            IsActive = true,
+            EmailConfirmed = true, // Set as confirmed for testing
+            Created = DateTime.Now
+        };
+
+        context.Users.Add(sampleUser);
         await context.SaveChangesAsync();
 
         // Create sample posts
@@ -250,17 +270,6 @@ Overall, this is a bold step into the future of education. If implemented though
         await context.SaveChangesAsync();
 
         // Add some sample comments
-        var sampleUser = new User
-        {
-            UserName = "JohnDoe",
-            Email = "john@example.com",
-            IsAdmin = false,
-            IsActive = true,
-            Created = DateTime.Now
-        };
-        context.Users.Add(sampleUser);
-        await context.SaveChangesAsync();
-
         var comments = new List<Comment>
         {
             new Comment

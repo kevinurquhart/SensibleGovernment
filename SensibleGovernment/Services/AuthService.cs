@@ -113,6 +113,12 @@ public class AuthService
     {
         try
         {
+            // Clean up old entries periodically (every 10th login attempt)
+            if (Random.Shared.Next(10) == 0)
+            {
+                CleanupOldLoginAttempts();
+            }
+            
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
                 return (false, "Email and password are required", false);
@@ -120,6 +126,9 @@ public class AuthService
 
             email = email.ToLowerInvariant().Trim();
             var ipAddress = GetClientIpAddress();
+
+            // DEBUG: Log the attempt
+            _logger.LogInformation($"Login attempt for email: {email}");
 
             // Check for IP-based lockout
             if (IsIpLockedOut(ipAddress))
@@ -134,11 +143,18 @@ public class AuthService
 
             if (user == null)
             {
+                // DEBUG: Log if user not found
+                _logger.LogWarning($"User not found for email: {email}");
+
                 // Track failed attempt even for non-existent users (prevent enumeration)
                 await TrackFailedLoginAsync(email, ipAddress);
-                _logger.LogWarning("Login attempt for non-existent user: {Email}", email);
                 return (false, "Invalid email or password", ShouldRequireCaptcha(ipAddress));
             }
+
+            // DEBUG: Log user details
+            _logger.LogInformation($"User found: {user.UserName}, ID: {user.Id}");
+            _logger.LogInformation($"Stored hash length: {user.PasswordHash?.Length ?? 0}");
+            _logger.LogInformation($"First 10 chars of hash: {user.PasswordHash?.Substring(0, Math.Min(10, user.PasswordHash?.Length ?? 0))}");
 
             // Check if account is locked
             if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTime.UtcNow)
@@ -156,7 +172,25 @@ public class AuthService
             }
 
             // Verify password
-            bool passwordValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+            bool passwordValid = false;
+
+            // DEBUG: Extra validation
+            if (string.IsNullOrEmpty(user.PasswordHash))
+            {
+                _logger.LogError($"User {email} has no password hash!");
+                return (false, "Account configuration error. Please contact support.", false);
+            }
+
+            try
+            {
+                passwordValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+                _logger.LogInformation($"Password verification result: {passwordValid}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"BCrypt verification error: {ex.Message}");
+                return (false, "Password verification failed", false);
+            }
 
             if (!passwordValid)
             {
@@ -179,9 +213,7 @@ public class AuthService
             // Check if 2FA is required for admin accounts
             if (user.IsAdmin && user.TwoFactorEnabled)
             {
-                // In production, implement proper 2FA flow
                 _logger.LogInformation("2FA required for admin user: {Email}", email);
-                // For now, we'll proceed but log it
             }
 
             // Successful login - reset failed attempts
@@ -384,42 +416,49 @@ public class AuthService
         return httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
     }
 
+    // Add a method to clean up old IP tracking entries
+    private void CleanupOldLoginAttempts()
+    {
+        var cutoffTime = DateTime.UtcNow.AddMinutes(-LOCKOUT_DURATION_MINUTES);
+        var keysToRemove = _loginAttempts
+            .Where(kvp => kvp.Value.LastAttempt < cutoffTime)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            _loginAttempts.Remove(key);
+        }
+
+        if (keysToRemove.Any())
+        {
+            _logger.LogDebug($"Cleaned up {keysToRemove.Count} old IP tracking entries");
+        }
+    }
+
     private async Task UpdateSessionAsync(User user)
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null) return;
+        // In Blazor Server, we don't use HTTP sessions
+        // The CustomAuthenticationStateProvider handles state management using ProtectedLocalStorage
+        _logger.LogInformation($"User state updated for {user.UserName} (ID: {user.Id})");
 
-        // Store session info (in production, use proper session management)
-        httpContext.Session.SetString("UserId", user.Id.ToString());
-        httpContext.Session.SetString("UserName", user.UserName);
-        httpContext.Session.SetString("IsAdmin", user.IsAdmin.ToString());
-        httpContext.Session.SetString("SessionStart", DateTime.UtcNow.ToString());
+        // We could store additional info here if needed, but it's not required
+        // The CustomAuthenticationStateProvider will handle the actual authentication state
+        await Task.CompletedTask;
     }
 
     private void ClearSession()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        httpContext?.Session.Clear();
+        // No session to clear in Blazor Server
+        // The CustomAuthenticationStateProvider will handle clearing the auth state
+        _logger.LogInformation("User state cleared");
     }
 
     public async Task<bool> ValidateSessionAsync()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null) return false;
-
-        var sessionStart = httpContext.Session.GetString("SessionStart");
-        if (string.IsNullOrEmpty(sessionStart)) return false;
-
-        if (DateTime.TryParse(sessionStart, out var startTime))
-        {
-            if (DateTime.UtcNow - startTime > TimeSpan.FromMinutes(SESSION_TIMEOUT_MINUTES))
-            {
-                Logout();
-                return false;
-            }
-        }
-
-        return true;
+        // Session validation not needed in Blazor Server
+        // The CustomAuthenticationStateProvider handles this through ProtectedLocalStorage
+        return await Task.FromResult(true);
     }
 
     private async Task LogAdminActionAsync(int userId, string action, string details)

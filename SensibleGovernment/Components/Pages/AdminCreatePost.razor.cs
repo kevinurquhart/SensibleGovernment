@@ -7,6 +7,11 @@ namespace SensibleGovernment.Components.Pages
 {
     public partial class AdminCreatePost
     {
+        // Auth check fields
+        private bool isLoading = true;
+        private bool isAuthorized = false;
+
+        // Existing fields
         private PostModel newPost = new();
         private List<PostSource> sources = new();
         private bool isCreating = false;
@@ -19,16 +24,56 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            authState = await AuthProvider.GetAuthenticationStateAsync();
-            if (authState?.User.Identity?.IsAuthenticated == true)
+            isLoading = true;
+
+            try
             {
+                // Use the injected AuthStateProvider (which is AuthenticationStateProvider)
+                authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+                // Log for debugging
+                Console.WriteLine($"AdminCreatePost - User authenticated: {authState?.User.Identity?.IsAuthenticated}");
+                Console.WriteLine($"AdminCreatePost - User name: {authState?.User.Identity?.Name}");
+                Console.WriteLine($"AdminCreatePost - Is Admin: {authState?.User.IsInRole("Admin")}");
+
+                // Check if user is authenticated
+                if (authState?.User.Identity?.IsAuthenticated != true)
+                {
+                    Console.WriteLine("AdminCreatePost - Not authenticated, redirecting to login");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                // Check if user is admin
+                if (!authState.User.IsInRole("Admin"))
+                {
+                    Console.WriteLine("AdminCreatePost - Not admin, showing error");
+                    isAuthorized = false;
+                    isLoading = false;
+                    return;
+                }
+
+                Console.WriteLine("AdminCreatePost - User is authorized admin");
+                isAuthorized = true;
+
+                // Get current user ID for post creation
                 var userIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
                 {
                     currentUserId = userId;
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"AdminCreatePost - Error during initialization: {ex.Message}");
+                isAuthorized = false;
+            }
+            finally
+            {
+                isLoading = false;
+            }
         }
+
 
         private void NextSection()
         {

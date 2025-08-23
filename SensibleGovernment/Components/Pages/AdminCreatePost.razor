@@ -1,397 +1,263 @@
 @page "/admin/createpost"
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
-@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Authorization
-@using System.ComponentModel.DataAnnotations
 @inject PostService PostService
-@inject CustomAuthenticationStateProvider AuthProvider
-@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
-@attribute [Authorize(Policy = "AdminOnly")]
 
-<PageTitle>Create Article - The Sensible Citizen</PageTitle>
+<PageTitle>Create Post - The Sensible Citizen</PageTitle>
 
-<div class="container py-4">
-    <div class="row">
-        <div class="col-lg-10 mx-auto">
-            <!-- Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="bi bi-pencil-square"></i> Create New Article</h2>
-                <div>
-                    <button class="btn btn-outline-secondary me-2" @onclick="SaveDraft" disabled="@isSaving">
-                        <i class="bi bi-save"></i> Save Draft
-                    </button>
-                    <button class="btn btn-outline-primary me-2" @onclick="PreviewArticle">
-                        <i class="bi bi-eye"></i> Preview
-                    </button>
-                    <a href="/" class="btn btn-outline-danger">
-                        <i class="bi bi-x-circle"></i> Cancel
-                    </a>
-                </div>
+@if (isLoading)
+{
+    <div class="container py-5">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+}
+else if (!isAuthorized)
+{
+    <div class="container py-5">
+        <div class="alert alert-danger">
+            <h4>Access Denied</h4>
+            <p>You must be an administrator to access this page.</p>
+            <a href="/" class="btn btn-primary">Return to Home</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container py-4">
+        <h1 class="mb-4">
+            <i class="bi bi-pencil-square"></i> Create New Article
+        </h1>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> @errorMessage
+                <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> @successMessage
+            </div>
+        }
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <ul class="nav nav-pills card-header-pills">
+                    <li class="nav-item">
+                        <button class="nav-link @(activeSection == "basic" ? "active" : "text-white")"
+                                @onclick="@(() => activeSection = "basic")">
+                            <i class="bi bi-info-circle"></i> Basic Info
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(activeSection == "content" ? "active" : "text-white")"
+                                @onclick="@(() => activeSection = "content")">
+                            <i class="bi bi-body-text"></i> Content
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(activeSection == "media" ? "active" : "text-white")"
+                                @onclick="@(() => activeSection = "media")">
+                            <i class="bi bi-image"></i> Media
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link @(activeSection == "sources" ? "active" : "text-white")"
+                                @onclick="@(() => activeSection = "sources")">
+                            <i class="bi bi-link-45deg"></i> Sources
+                        </button>
+                    </li>
+                </ul>
             </div>
 
-            @if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <div class="alert alert-danger alert-dismissible fade show">
-                    <i class="bi bi-exclamation-triangle"></i> @errorMessage
-                    <button type="button" class="btn-close" @onclick="@(() => errorMessage = null)"></button>
-                </div>
-            }
+            <div class="card-body">
+                <EditForm Model="@newPost" OnValidSubmit="HandleCreatePost">
+                    <DataAnnotationsValidator />
 
-            @if (!string.IsNullOrEmpty(successMessage))
-            {
-                <div class="alert alert-success alert-dismissible fade show">
-                    <i class="bi bi-check-circle"></i> @successMessage
-                    <button type="button" class="btn-close" @onclick="@(() => successMessage = null)"></button>
-                </div>
-            }
-
-            <EditForm Model="@newPost" OnValidSubmit="HandleCreatePost">
-                <DataAnnotationsValidator />
-
-                <!-- Step Progress Indicator -->
-                <div class="step-indicator mb-4">
-                    <div class="step @(activeSection == "basic" ? "active" : "")" @onclick="@(() => activeSection = "basic")">
-                        <span class="step-number">1</span>
-                        <span class="step-label">Basic Info</span>
-                    </div>
-                    <div class="step @(activeSection == "content" ? "active" : "")" @onclick="@(() => activeSection = "content")">
-                        <span class="step-number">2</span>
-                        <span class="step-label">Content</span>
-                    </div>
-                    <div class="step @(activeSection == "media" ? "active" : "")" @onclick="@(() => activeSection = "media")">
-                        <span class="step-number">3</span>
-                        <span class="step-label">Media</span>
-                    </div>
-                    <div class="step @(activeSection == "sources" ? "active" : "")" @onclick="@(() => activeSection = "sources")">
-                        <span class="step-number">4</span>
-                        <span class="step-label">Sources</span>
-                    </div>
-                </div>
-
-                <!-- Section: Basic Information -->
-                @if (activeSection == "basic")
-                {
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0"><i class="bi bi-info-circle"></i> Basic Information</h5>
+                    @* Basic Info Section *@
+                    <div class="@(activeSection == "basic" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label class="form-label">Article Title *</label>
+                            <InputText class="form-control form-control-lg" @bind-Value="newPost.Title"
+                                       placeholder="Enter a compelling headline..." />
+                            <ValidationMessage For="@(() => newPost.Title)" />
                         </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-8 mb-3">
-                                    <label class="form-label fw-bold">Article Title <span class="text-danger">*</span></label>
-                                    <InputText class="form-control form-control-lg" @bind-Value="newPost.Title" 
-                                                placeholder="Enter a compelling headline..." />
-                                    <ValidationMessage For="@(() => newPost.Title)" />
-                                    <small class="form-text text-muted">@(200 - newPost.Title.Length) characters remaining</small>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">Topic <span class="text-danger">*</span></label>
-                                    <InputSelect class="form-select form-select-lg" @bind-Value="newPost.Topic">
-                                        <option value="">Select Topic</option>
-                                        <option value="News">Politics</option>
-                                        <option value="Economy">Economy</option>
-                                        <option value="Health">Health</option>
-                                        <option value="Education">Education</option>
-                                        <option value="Technology">Technology</option>
-                                        <option value="Sport">Sport</option>
-                                    </InputSelect>
-                                    <ValidationMessage For="@(() => newPost.Topic)" />
-                                </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Topic *</label>
+                                <InputSelect class="form-control" @bind-Value="newPost.Topic">
+                                    <option value="">-- Select Topic --</option>
+                                    <option value="News">Politics & News</option>
+                                    <option value="Economy">Economy</option>
+                                    <option value="Health">Health</option>
+                                    <option value="Education">Education</option>
+                                    <option value="Technology">Technology</option>
+                                    <option value="Sport">Sport</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newPost.Topic)" />
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Publication Status</label>
-                                    <div class="btn-group w-100" role="group">
-                                        <input type="radio" class="btn-check" name="pubStatus" id="draft" 
-                                                checked="@(!newPost.IsPublished)" @onchange="@(() => newPost.IsPublished = false)">
-                                        <label class="btn btn-outline-secondary" for="draft">
-                                            <i class="bi bi-file-earmark"></i> Draft
-                                        </label>
-                                        <input type="radio" class="btn-check" name="pubStatus" id="published" 
-                                                checked="@newPost.IsPublished" @onchange="@(() => newPost.IsPublished = true)">
-                                        <label class="btn btn-outline-success" for="published">
-                                            <i class="bi bi-globe"></i> Published
-                                        </label>
-                                    </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Publication Status</label>
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsPublished" id="isPublished" />
+                                    <label class="form-check-label" for="isPublished">
+                                        Publish immediately
+                                    </label>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Feature Article</label>
-                                    <div class="form-check form-switch">
-                                        <InputCheckbox class="form-check-input" @bind-Value="newPost.IsFeatured" id="featured" />
-                                        <label class="form-check-label" for="featured">
-                                            Display as featured story on homepage
-                                        </label>
-                                    </div>
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsFeatured" id="isFeatured" />
+                                    <label class="form-check-label" for="isFeatured">
+                                        Feature on homepage
+                                    </label>
                                 </div>
                             </div>
                         </div>
                     </div>
-                }
 
-                <!-- Section: Content -->
-                @if (activeSection == "content")
-                {
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0"><i class="bi bi-newspaper"></i> Article Content</h5>
+                    @* Content Section *@
+                    <div class="@(activeSection == "content" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label class="form-label">Article Content (Facts) *</label>
+                            <InputTextArea class="form-control" rows="12" @bind-Value="newPost.Content"
+                                           placeholder="Write the factual content of your article..." />
+                            <ValidationMessage For="@(() => newPost.Content)" />
+                            <small class="text-muted">@newPost.Content.Length characters</small>
                         </div>
-                        <div class="card-body">
-                            <!-- Facts Section -->
-                            <div class="mb-4">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-file-text text-primary"></i> The Facts 
-                                    <span class="text-danger">*</span>
-                                </label>
-                                <p class="text-muted small">Objective, factual reporting. No opinions here.</p>
-                                <InputTextArea class="form-control" rows="12" @bind-Value="newPost.Content" 
-                                                placeholder="Present the facts clearly and objectively. Use paragraphs for better readability..." />
-                                <ValidationMessage For="@(() => newPost.Content)" />
-                                <small class="form-text text-muted">
-                                    @newPost.Content.Length characters • Minimum 50 characters required
-                                </small>
-                            </div>
 
-                            <!-- Opinion Section -->
-                            <div class="mb-4">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-chat-square-quote text-warning"></i> Editorial Opinion
-                                    <span class="badge bg-secondary ms-2">Optional</span>
-                                </label>
-                                <p class="text-muted small">Your analysis, perspective, and editorial commentary.</p>
-                                <InputTextArea class="form-control" rows="10" @bind-Value="newPost.Opinion" 
-                                                placeholder="Share your editorial perspective, analysis, and opinion on the facts presented above..." />
-                                <small class="form-text text-muted">
-                                    This will appear in a clearly marked 'Editorial Opinion' section
-                                </small>
-                            </div>
+                        <div class="mb-3">
+                            <label class="form-label">Editorial Opinion (Optional)</label>
+                            <InputTextArea class="form-control" rows="8" @bind-Value="newPost.Opinion"
+                                           placeholder="Add your editorial perspective or analysis..." />
+                            <small class="text-muted">This will appear in a separate opinion section</small>
                         </div>
                     </div>
-                }
 
-                <!-- Section: Media -->
-                @if (activeSection == "media")
-                {
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0"><i class="bi bi-image"></i> Images & Media</h5>
+                    @* Media Section *@
+                    <div class="@(activeSection == "media" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label class="form-label">Featured Image URL</label>
+                            <InputText class="form-control" @bind-Value="newPost.FeaturedImageUrl"
+                                       placeholder="https://example.com/image.jpg" />
+                            <small class="text-muted">Main article image (1200x600 recommended)</small>
                         </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-4">
-                                    <label class="form-label fw-bold">Featured Image URL</label>
-                                    <InputText class="form-control" @bind-Value="newPost.FeaturedImageUrl" 
-                                                placeholder="https://example.com/image.jpg" />
-                                    <small class="form-text text-muted">
-                                        High-resolution image (1200x600px recommended)
-                                    </small>
-                                    @if (!string.IsNullOrEmpty(newPost.FeaturedImageUrl))
-                                    {
-                                        <div class="mt-2">
-                                            <img src="@newPost.FeaturedImageUrl" class="img-fluid rounded" 
-                                                    alt="Featured preview" style="max-height: 200px;" />
-                                        </div>
-                                    }
-                                </div>
-                                <div class="col-md-6 mb-4">
-                                    <label class="form-label fw-bold">Thumbnail Image URL</label>
-                                    <InputText class="form-control" @bind-Value="newPost.ThumbnailImageUrl" 
-                                                placeholder="https://example.com/thumb.jpg" />
-                                    <small class="form-text text-muted">
-                                        Smaller image for cards (400x300px recommended)
-                                    </small>
-                                    @if (!string.IsNullOrEmpty(newPost.ThumbnailImageUrl))
-                                    {
-                                        <div class="mt-2">
-                                            <img src="@newPost.ThumbnailImageUrl" class="img-fluid rounded" 
-                                                    alt="Thumbnail preview" style="max-height: 150px;" />
-                                        </div>
-                                    }
-                                </div>
-                            </div>
 
+                        <div class="mb-3">
+                            <label class="form-label">Thumbnail Image URL</label>
+                            <InputText class="form-control" @bind-Value="newPost.ThumbnailImageUrl"
+                                       placeholder="https://example.com/thumbnail.jpg" />
+                            <small class="text-muted">Card/list image (400x300 recommended)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Image Caption</label>
+                            <InputText class="form-control" @bind-Value="newPost.ImageCaption"
+                                       placeholder="Describe the image..." />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(newPost.FeaturedImageUrl))
+                        {
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Image Caption</label>
-                                <InputText class="form-control" @bind-Value="newPost.ImageCaption" 
-                                            placeholder="Describe the image or provide attribution..." />
-                                <small class="form-text text-muted">
-                                    Optional caption or credit for the images
-                                </small>
+                                <label class="form-label">Preview:</label>
+                                <img src="@newPost.FeaturedImageUrl" class="img-fluid rounded" alt="Preview"
+                                     style="max-height: 300px;" />
                             </div>
-
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> 
-                                <strong>Image Tips:</strong> Use Unsplash for free high-quality images. 
-                                Add ?w=1200&h=600&fit=crop to Unsplash URLs for automatic resizing.
-                            </div>
-                        </div>
+                        }
                     </div>
-                }
 
-                <!-- Section: Sources -->
-                @if (activeSection == "sources")
-                {
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h5 class="mb-0"><i class="bi bi-link-45deg"></i> Sources & References</h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted">Add credible sources to support your article's facts.</p>
-
-                            @foreach (var source in sources)
-                            {
-                                <div class="source-item mb-3 p-3 bg-light rounded">
-                                    <div class="row">
-                                        <div class="col-md-5 mb-2">
-                                            <input type="text" class="form-control" @bind="source.Title" 
-                                                    placeholder="Source title (e.g., 'BBC News Report')" />
-                                        </div>
-                                        <div class="col-md-5 mb-2">
-                                            <input type="url" class="form-control" @bind="source.Url" 
-                                                    placeholder="https://source-url.com" />
-                                        </div>
-                                        <div class="col-md-2 mb-2">
-                                            <button type="button" class="btn btn-outline-danger btn-sm w-100" 
-                                                    @onclick="() => RemoveSource(source)">
-                                                <i class="bi bi-trash"></i> Remove
-                                            </button>
-                                        </div>
-                                        <div class="col-12">
-                                            <input type="text" class="form-control" @bind="source.Description" 
-                                                    placeholder="Brief description of this source (optional)" />
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-
-                            <button type="button" class="btn btn-outline-primary" @onclick="AddSource">
+                    @* Sources Section *@
+                    <div class="@(activeSection == "sources" ? "" : "d-none")">
+                        <div class="mb-3">
+                            <label class="form-label">Sources & References</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" @onclick="AddSource">
                                 <i class="bi bi-plus-circle"></i> Add Source
                             </button>
                         </div>
-                    </div>
-                }
 
-                <!-- Navigation Buttons -->
-                <div class="d-flex justify-content-between mb-5">
-                    <div>
-                        @if (activeSection != "basic")
+                        @foreach (var source in sources)
                         {
-                            <button type="button" class="btn btn-outline-secondary" @onclick="PreviousSection">
-                                <i class="bi bi-arrow-left"></i> Previous
-                            </button>
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-5">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   placeholder="Source title" @bind="source.Title" />
+                                        </div>
+                                        <div class="col-md-5">
+                                            <input type="url" class="form-control form-control-sm"
+                                                   placeholder="https://..." @bind="source.Url" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-sm btn-danger"
+                                                    @onclick="@(() => RemoveSource(source))">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col-12">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   placeholder="Brief description (optional)" @bind="source.Description" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         }
                     </div>
-                    <div>
-                        @if (activeSection != "sources")
-                        {
-                            <button type="button" class="btn btn-primary" @onclick="NextSection">
-                                Next <i class="bi bi-arrow-right"></i>
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="submit" class="btn btn-success btn-lg" disabled="@isCreating">
-                                @if (isCreating)
+
+                    @* Navigation Buttons *@
+                    <div class="d-flex justify-content-between mt-4">
+                        <div>
+                            @if (activeSection != "basic")
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="PreviousSection">
+                                    <i class="bi bi-arrow-left"></i> Previous
+                                </button>
+                            }
+                        </div>
+
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="SaveDraft"
+                                    disabled="@isSaving">
+                                @if (isSaving)
                                 {
-                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
                                 }
-                                <i class="bi bi-check-circle"></i> Publish Article
+                                <i class="bi bi-save"></i> Save as Draft
                             </button>
-                        }
+
+                            @if (activeSection == "sources")
+                            {
+                                <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                                    @if (isCreating)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    <i class="bi bi-send"></i> Publish Article
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-primary" @onclick="NextSection">
+                                    Next <i class="bi bi-arrow-right"></i>
+                                </button>
+                            }
+                        </div>
                     </div>
-                </div>
-            </EditForm>
+                </EditForm>
+            </div>
         </div>
     </div>
-</div>
-
-<style>
-    /* Step Indicator */
-    .step-indicator {
-        display: flex;
-        justify-content: space-between;
-        position: relative;
-    }
-
-    .step-indicator::before {
-        content: '';
-        position: absolute;
-        top: 20px;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: #e0e0e0;
-        z-index: 0;
-    }
-
-    .step {
-        text-align: center;
-        position: relative;
-        z-index: 1;
-        cursor: pointer;
-        flex: 1;
-    }
-
-    .step-number {
-        display: inline-block;
-        width: 40px;
-        height: 40px;
-        line-height: 40px;
-        border-radius: 50%;
-        background: white;
-        border: 2px solid #e0e0e0;
-        color: #999;
-        font-weight: bold;
-        margin-bottom: 5px;
-        transition: all 0.3s;
-    }
-
-    .step.active .step-number {
-        background: #0d6efd;
-        border-color: #0d6efd;
-        color: white;
-    }
-
-    .step-label {
-        display: block;
-        font-size: 0.875rem;
-        color: #666;
-    }
-
-    .step.active .step-label {
-        color: #0d6efd;
-        font-weight: 600;
-    }
-
-    /* Source Items */
-    .source-item {
-        border-left: 3px solid #0d6efd;
-        transition: all 0.2s;
-    }
-
-    .source-item:hover {
-        background: #e8f4fd !important;
-    }
-
-    /* Card Headers */
-    .card-header {
-        font-weight: 600;
-    }
-
-    /* Form Controls */
-    .form-control:focus, .form-select:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-    }
-
-    textarea.form-control {
-        font-family: 'Georgia', serif;
-        font-size: 1.05rem;
-        line-height: 1.6;
-    }
-</style>
-
+}

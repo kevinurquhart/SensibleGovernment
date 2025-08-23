@@ -18,6 +18,10 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
+            // TEMPORARY - Generate correct hash
+            string correctHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
+            Console.WriteLine($"New hash for Password123!: {correctHash}");
+
             authState = await AuthProvider.GetAuthenticationStateAsync();
             await LoadPosts();
 
