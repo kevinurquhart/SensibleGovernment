@@ -1,11 +1,13 @@
-using SensibleGovernment.Components;
-using SensibleGovernment.Data;
-using SensibleGovernment.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using SensibleGovernment.Components;
+using SensibleGovernment.Data;
+using SensibleGovernment.DataLayer;
+using SensibleGovernment.DataLayer.DataAccess;
+using SensibleGovernment.Services;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,9 +27,16 @@ if (string.IsNullOrEmpty(connectionString))
     throw new Exception("Connection string 'DefaultConnection' not found or not initialised.");
 }
 
-// Add EF Core for SQL Server
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString));
+//// Add EF Core for SQL Server
+//builder.Services.AddDbContext<AppDbContext>(options =>
+//    options.UseSqlServer(connectionString));
+
+// Add SQL Data Layer
+builder.Services.AddScoped<SQLConnection>();
+builder.Services.AddScoped<PostDataAccess>();
+builder.Services.AddScoped<UserDataAccess>();
+builder.Services.AddScoped<CommentDataAccess>();
+builder.Services.AddScoped<AdminDataAccess>();
 
 // Add HttpContext accessor for IP tracking
 builder.Services.AddHttpContextAccessor();
