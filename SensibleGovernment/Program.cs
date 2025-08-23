@@ -89,6 +89,10 @@ builder.Services.AddScoped<AuthenticationStateProvider>(provider =>
 builder.Services.AddScoped<PostService>();
 builder.Services.AddScoped<AdminService>();
 
+// Add new services for features
+builder.Services.AddScoped<ImageUploadService>();
+builder.Services.AddScoped<EmailService>();
+
 // Add anti-forgery token support
 builder.Services.AddAntiforgery(options =>
 {

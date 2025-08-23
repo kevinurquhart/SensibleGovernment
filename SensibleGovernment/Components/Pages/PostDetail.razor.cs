@@ -35,7 +35,7 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            authState = await AuthProvider.GetAuthenticationStateAsync();
+            authState = await AuthStateProvider.GetAuthenticationStateAsync();  // Changed from AuthProvider
 
             if (authState?.User.Identity?.IsAuthenticated == true)
             {

@@ -1,0 +1,110 @@
+﻿@* Create new file: Components/Shared/SocialShare.razor *@
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="social-share-buttons">
+    <button class="btn btn-sm btn-primary me-1" @onclick="ShareToFacebook" title="Share on Facebook">
+        <i class="bi bi-facebook"></i>
+    </button>
+
+    <button class="btn btn-sm btn-info text-white me-1" @onclick="ShareToTwitter" title="Share on Twitter">
+        <i class="bi bi-twitter"></i>
+    </button>
+
+    <button class="btn btn-sm btn-success me-1" @onclick="ShareToWhatsApp" title="Share on WhatsApp">
+        <i class="bi bi-whatsapp"></i>
+    </button>
+
+    <button class="btn btn-sm btn-primary me-1" @onclick="ShareToLinkedIn" title="Share on LinkedIn">
+        <i class="bi bi-linkedin"></i>
+    </button>
+
+    <button class="btn btn-sm btn-secondary me-1" @onclick="ShareToEmail" title="Share via Email">
+        <i class="bi bi-envelope"></i>
+    </button>
+
+    <button class="btn btn-sm btn-dark" @onclick="CopyLink" title="Copy Link">
+        <i class="bi @(linkCopied ? "bi-check" : "bi-link-45deg")"></i>
+        @if (linkCopied)
+        {
+            <span>Copied!</span>
+        }
+    </button>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string? Url { get; set; }
+
+    private bool linkCopied = false;
+
+    private string GetShareUrl() => Url ?? Navigation.Uri;
+
+    private async Task ShareToFacebook()
+    {
+        await OpenShareWindow("facebook");
+    }
+
+    private async Task ShareToTwitter()
+    {
+        await OpenShareWindow("twitter");
+    }
+
+    private async Task ShareToWhatsApp()
+    {
+        await OpenShareWindow("whatsapp");
+    }
+
+    private async Task ShareToLinkedIn()
+    {
+        await OpenShareWindow("linkedin");
+    }
+
+    private async Task ShareToEmail()
+    {
+        await OpenShareWindow("email");
+    }
+
+    private async Task OpenShareWindow(string platform)
+    {
+        var url = Uri.EscapeDataString(GetShareUrl());
+        var title = Uri.EscapeDataString(Title);
+        var description = Uri.EscapeDataString(Description);
+
+        var shareUrl = platform switch
+        {
+            "facebook" => $"https://www.facebook.com/sharer/sharer.php?u={url}",
+            "twitter" => $"https://twitter.com/intent/tweet?url={url}&text={title}",
+            "whatsapp" => $"https://wa.me/?text={title}%20{url}",
+            "linkedin" => $"https://www.linkedin.com/sharing/share-offsite/?url={url}",
+            "email" => $"mailto:?subject={title}&body={description}%20{url}",
+            _ => ""
+        };
+
+        if (!string.IsNullOrEmpty(shareUrl))
+        {
+            await JS.InvokeVoidAsync("window.open", shareUrl, "_blank", "width=600,height=400");
+        }
+    }
+
+    private async Task CopyLink()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", GetShareUrl());
+            linkCopied = true;
+            StateHasChanged();
+
+            // Reset after 2 seconds
+            await Task.Delay(2000);
+            linkCopied = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Fallback for browsers that don't support clipboard API
+            await JS.InvokeVoidAsync("alert", "Link copied: " + GetShareUrl());
+        }
+    }
+}

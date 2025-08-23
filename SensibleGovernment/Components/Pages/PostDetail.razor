@@ -1,10 +1,11 @@
 ﻿@page "/post/{PostId:int}"
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
+@using SensibleGovernment.Components.Shared
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Authorization
 @inject PostService PostService
-@inject CustomAuthenticationStateProvider AuthProvider
+@inject AuthenticationStateProvider AuthStateProvider
 @inject AuthService AuthService
 @inject AdminService AdminService
 @inject NavigationManager Navigation
@@ -12,7 +13,7 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
-<PageTitle>@(post?.Title ?? "Loading...") - Central News</PageTitle>
+<PageTitle>@(post?.Title ?? "Loading...") - The Sensible Citizen</PageTitle>
 
 @if (loading)
 {
@@ -79,11 +80,18 @@ else
                                 <small class="text-muted">Comments</small>
                             </div>
                             <div>
-                                <button class="btn btn-outline-primary" @onclick="SharePost">
-                                    <i class="bi bi-share"></i> Share
-                                </button>
+                                <SocialShare Title="@post.Title"
+                                             Description="@TruncateText(post.Content, 160)" />
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Social Sharing Section -->
+                    <div class="content-section mb-4">
+                        <h5 class="mb-3">Share this article</h5>
+                        <SocialShare Title="@post.Title"
+                                     Description="@TruncateText(post.Content, 160)"
+                                     Url="@Navigation.Uri" />
                     </div>
 
                     <!-- The Facts Section -->
@@ -175,9 +183,10 @@ else
                                     <i class="bi bi-hand-thumbs-up"></i> Login to Like
                                 </button>
                             }
-                            <button class="btn btn-outline-secondary" @onclick="SharePost">
-                                <i class="bi bi-share"></i> Share
-                            </button>
+                            <div style="display: inline-block;">
+                                <SocialShare Title="@post.Title"
+                                             Description="@TruncateText(post.Content, 160)" />
+                            </div>
                         </div>
                     </div>
 
@@ -331,8 +340,6 @@ else
     </div>
 }
 
-
-
 <style>
     /* Stylish gradient header without image */
     .article-header-styled {
@@ -380,20 +387,63 @@ else
             margin: 0 auto;
         }
 
-        /* Topic-specific gradient colors */
-        .article-header-styled.topic-sport {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    /* Content sections */
+    .content-section {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        transition: all 0.3s ease;
+    }
+
+        .content-section:hover {
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
         }
 
-        .article-header-styled.topic-health {
-            background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+    .facts-section {
+        border-left: 4px solid var(--bs-primary);
+    }
+
+    .opinion-section {
+        background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+        border-left: 4px solid var(--bs-warning);
+    }
+
+    /* Comments */
+    .comment-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+    }
+
+        .comment-card:hover {
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+            border-left-color: var(--bs-primary);
+            transform: translateX(5px);
         }
 
-        .article-header-styled.topic-technology {
-            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-        }
+    /* Animations */
+    @@keyframes fadeInUp {
+        from
 
-        .article-header-styled.topic-education {
-            background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-        }
+    {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    .animate-in {
+        animation: fadeInUp 0.5s ease-out;
+    }
 </style>

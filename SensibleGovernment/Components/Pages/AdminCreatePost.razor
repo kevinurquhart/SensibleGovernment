@@ -1,10 +1,13 @@
 @page "/admin/createpost"
 @using SensibleGovernment.Models
 @using SensibleGovernment.Services
+@using SensibleGovernment.Components.Shared
 @using Microsoft.AspNetCore.Components.Authorization
 @inject PostService PostService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject ImageUploadService ImageService
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Create Post - The Sensible Citizen</PageTitle>
@@ -34,6 +37,14 @@ else
     <div class="container py-4">
         <h1 class="mb-4">
             <i class="bi bi-pencil-square"></i> Create New Article
+            @if (isAutoSaving)
+            {
+                <span class="badge bg-info ms-2">Auto-saving...</span>
+            }
+            @if (lastAutoSave != null)
+            {
+                <small class="text-muted ms-2" style="font-size: 0.5em;">Last saved: @lastAutoSave.Value.ToString("HH:mm:ss")</small>
+            }
         </h1>
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -55,25 +66,25 @@ else
             <div class="card-header bg-primary text-white">
                 <ul class="nav nav-pills card-header-pills">
                     <li class="nav-item">
-                        <button class="nav-link @(activeSection == "basic" ? "active" : "text-white")"
+                        <button class="nav-link @(activeSection == "basic" ? "active" : "text-white")" 
                                 @onclick="@(() => activeSection = "basic")">
                             <i class="bi bi-info-circle"></i> Basic Info
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link @(activeSection == "content" ? "active" : "text-white")"
+                        <button class="nav-link @(activeSection == "content" ? "active" : "text-white")" 
                                 @onclick="@(() => activeSection = "content")">
                             <i class="bi bi-body-text"></i> Content
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link @(activeSection == "media" ? "active" : "text-white")"
+                        <button class="nav-link @(activeSection == "media" ? "active" : "text-white")" 
                                 @onclick="@(() => activeSection = "media")">
                             <i class="bi bi-image"></i> Media
                         </button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link @(activeSection == "sources" ? "active" : "text-white")"
+                        <button class="nav-link @(activeSection == "sources" ? "active" : "text-white")" 
                                 @onclick="@(() => activeSection = "sources")">
                             <i class="bi bi-link-45deg"></i> Sources
                         </button>
@@ -84,12 +95,13 @@ else
             <div class="card-body">
                 <EditForm Model="@newPost" OnValidSubmit="HandleCreatePost">
                     <DataAnnotationsValidator />
-
+                    
                     @* Basic Info Section *@
                     <div class="@(activeSection == "basic" ? "" : "d-none")">
                         <div class="mb-3">
                             <label class="form-label">Article Title *</label>
-                            <InputText class="form-control form-control-lg" @bind-Value="newPost.Title"
+                            <InputText class="form-control form-control-lg" @bind-Value="newPost.Title" 
+                                       @oninput="OnFieldChanged"
                                        placeholder="Enter a compelling headline..." />
                             <ValidationMessage For="@(() => newPost.Title)" />
                         </div>
@@ -97,7 +109,8 @@ else
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Topic *</label>
-                                <InputSelect class="form-control" @bind-Value="newPost.Topic">
+                                <InputSelect class="form-control" @bind-Value="newPost.Topic"
+                                            @onchange="OnFieldChanged">
                                     <option value="">-- Select Topic --</option>
                                     <option value="News">Politics & News</option>
                                     <option value="Economy">Economy</option>
@@ -112,13 +125,15 @@ else
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Publication Status</label>
                                 <div class="form-check">
-                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsPublished" id="isPublished" />
+                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsPublished" 
+                                                  @onchange="OnFieldChanged" id="isPublished" />
                                     <label class="form-check-label" for="isPublished">
                                         Publish immediately
                                     </label>
                                 </div>
                                 <div class="form-check">
-                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsFeatured" id="isFeatured" />
+                                    <InputCheckbox class="form-check-input" @bind-Value="newPost.IsFeatured" 
+                                                  @onchange="OnFieldChanged" id="isFeatured" />
                                     <label class="form-check-label" for="isFeatured">
                                         Feature on homepage
                                     </label>
@@ -131,47 +146,112 @@ else
                     <div class="@(activeSection == "content" ? "" : "d-none")">
                         <div class="mb-3">
                             <label class="form-label">Article Content (Facts) *</label>
-                            <InputTextArea class="form-control" rows="12" @bind-Value="newPost.Content"
-                                           placeholder="Write the factual content of your article..." />
+                            @if (useRichTextEditor)
+                            {
+                                <div class="alert alert-info mb-2">
+                                    <i class="bi bi-info-circle"></i> Rich text editor allows basic HTML formatting. Use the source code view for advanced editing.
+                                </div>
+                                <textarea class="form-control" rows="12" @bind="newPost.Content" @bind:event="oninput"
+                                         @oninput="OnFieldChanged"
+                                         placeholder="Write the factual content of your article. You can use HTML tags like <b>, <i>, <p>, etc." />
+                            }
+                            else
+                            {
+                                <InputTextArea class="form-control" rows="12" @bind-Value="newPost.Content"
+                                              @oninput="OnFieldChanged"
+                                              placeholder="Write the factual content of your article..." />
+                            }
                             <ValidationMessage For="@(() => newPost.Content)" />
-                            <small class="text-muted">@newPost.Content.Length characters</small>
+                            <div class="d-flex justify-content-between mt-2">
+                                <small class="text-muted">@GetPlainTextLength() characters</small>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                        @onclick="ToggleEditor">
+                                    <i class="bi bi-code-slash"></i> 
+                                    @(useRichTextEditor ? "Switch to Plain Text" : "Switch to HTML Editor")
+                                </button>
+                            </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Editorial Opinion (Optional)</label>
-                            <InputTextArea class="form-control" rows="8" @bind-Value="newPost.Opinion"
-                                           placeholder="Add your editorial perspective or analysis..." />
+                            @if (useRichTextEditor)
+                            {
+                                <textarea class="form-control" rows="8" @bind="newPost.Opinion" @bind:event="oninput"
+                                         @oninput="OnFieldChanged"
+                                         placeholder="Add your editorial perspective or analysis. HTML formatting is supported." />
+                            }
+                            else
+                            {
+                                <InputTextArea class="form-control" rows="8" @bind-Value="newPost.Opinion"
+                                              @oninput="OnFieldChanged"
+                                              placeholder="Add your editorial perspective or analysis..." />
+                            }
                             <small class="text-muted">This will appear in a separate opinion section</small>
                         </div>
                     </div>
 
                     @* Media Section *@
                     <div class="@(activeSection == "media" ? "" : "d-none")">
-                        <div class="mb-3">
-                            <label class="form-label">Featured Image URL</label>
-                            <InputText class="form-control" @bind-Value="newPost.FeaturedImageUrl"
-                                       placeholder="https://example.com/image.jpg" />
-                            <small class="text-muted">Main article image (1200x600 recommended)</small>
-                        </div>
+                        <ul class="nav nav-tabs mb-3">
+                            <li class="nav-item">
+                                <button class="nav-link @(mediaUploadMode ? "active" : "")" type="button"
+                                        @onclick="@(() => mediaUploadMode = true)">
+                                    <i class="bi bi-upload"></i> Upload Images
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link @(!mediaUploadMode ? "active" : "")" type="button"
+                                        @onclick="@(() => mediaUploadMode = false)">
+                                    <i class="bi bi-link"></i> Use Image URLs
+                                </button>
+                            </li>
+                        </ul>
 
-                        <div class="mb-3">
-                            <label class="form-label">Thumbnail Image URL</label>
-                            <InputText class="form-control" @bind-Value="newPost.ThumbnailImageUrl"
-                                       placeholder="https://example.com/thumbnail.jpg" />
-                            <small class="text-muted">Card/list image (400x300 recommended)</small>
-                        </div>
+                        @if (mediaUploadMode)
+                        {
+                            <ImageUpload Label="Featured Image" 
+                                       CurrentImageUrl="@(newPost.FeaturedImageUrl ?? "")"
+                                       OnImageUploaded="@((url) => { newPost.FeaturedImageUrl = url; OnFieldChanged(); })"
+                                       OnImageRemoved="@(() => { newPost.FeaturedImageUrl = null; OnFieldChanged(); })"
+                                       HelpText="Main article image (1200x600 recommended, max 10MB)" />
+
+                            <ImageUpload Label="Thumbnail Image" 
+                                       CurrentImageUrl="@(newPost.ThumbnailImageUrl ?? "")"
+                                       OnImageUploaded="@((url) => { newPost.ThumbnailImageUrl = url; OnFieldChanged(); })"
+                                       OnImageRemoved="@(() => { newPost.ThumbnailImageUrl = null; OnFieldChanged(); })"
+                                       HelpText="Card/list image (400x300 recommended, max 10MB)" />
+                        }
+                        else
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Featured Image URL</label>
+                                <InputText class="form-control" @bind-Value="newPost.FeaturedImageUrl"
+                                          @oninput="OnFieldChanged"
+                                          placeholder="https://example.com/image.jpg" />
+                                <small class="text-muted">Main article image (1200x600 recommended)</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Thumbnail Image URL</label>
+                                <InputText class="form-control" @bind-Value="newPost.ThumbnailImageUrl"
+                                          @oninput="OnFieldChanged"
+                                          placeholder="https://example.com/thumbnail.jpg" />
+                                <small class="text-muted">Card/list image (400x300 recommended)</small>
+                            </div>
+                        }
 
                         <div class="mb-3">
                             <label class="form-label">Image Caption</label>
                             <InputText class="form-control" @bind-Value="newPost.ImageCaption"
-                                       placeholder="Describe the image..." />
+                                      @oninput="OnFieldChanged"
+                                      placeholder="Describe the image..." />
                         </div>
 
                         @if (!string.IsNullOrEmpty(newPost.FeaturedImageUrl))
                         {
                             <div class="mb-3">
                                 <label class="form-label">Preview:</label>
-                                <img src="@newPost.FeaturedImageUrl" class="img-fluid rounded" alt="Preview"
+                                <img src="@newPost.FeaturedImageUrl" class="img-fluid rounded" alt="Preview" 
                                      style="max-height: 300px;" />
                             </div>
                         }
@@ -192,15 +272,17 @@ else
                                 <div class="card-body">
                                     <div class="row">
                                         <div class="col-md-5">
-                                            <input type="text" class="form-control form-control-sm"
-                                                   placeholder="Source title" @bind="source.Title" />
+                                            <input type="text" class="form-control form-control-sm" 
+                                                   placeholder="Source title" @bind="source.Title"
+                                                   @oninput="OnFieldChanged" />
                                         </div>
                                         <div class="col-md-5">
-                                            <input type="url" class="form-control form-control-sm"
-                                                   placeholder="https://..." @bind="source.Url" />
+                                            <input type="url" class="form-control form-control-sm" 
+                                                   placeholder="https://..." @bind="source.Url"
+                                                   @oninput="OnFieldChanged" />
                                         </div>
                                         <div class="col-md-2">
-                                            <button type="button" class="btn btn-sm btn-danger"
+                                            <button type="button" class="btn btn-sm btn-danger" 
                                                     @onclick="@(() => RemoveSource(source))">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -208,8 +290,9 @@ else
                                     </div>
                                     <div class="row mt-2">
                                         <div class="col-12">
-                                            <input type="text" class="form-control form-control-sm"
-                                                   placeholder="Brief description (optional)" @bind="source.Description" />
+                                            <input type="text" class="form-control form-control-sm" 
+                                                   placeholder="Brief description (optional)" @bind="source.Description"
+                                                   @oninput="OnFieldChanged" />
                                         </div>
                                     </div>
                                 </div>
@@ -229,7 +312,7 @@ else
                         </div>
 
                         <div>
-                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="SaveDraft"
+                            <button type="button" class="btn btn-outline-secondary me-2" @onclick="SaveDraft" 
                                     disabled="@isSaving">
                                 @if (isSaving)
                                 {
