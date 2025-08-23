@@ -32,6 +32,9 @@ builder.Services.AddScoped<UserDataAccess>();
 builder.Services.AddScoped<CommentDataAccess>();
 builder.Services.AddScoped<AdminDataAccess>();
 
+builder.Services.AddScoped<CommentModerationService>();
+builder.Services.AddScoped<ModerationDataAccess>();
+
 // Add HttpContext accessor for IP tracking
 builder.Services.AddHttpContextAccessor();
 

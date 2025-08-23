@@ -36,22 +36,32 @@
     <div class="brand-header">
         <div class="container-fluid px-4">
             <div class="row align-items-center">
-                <div class="col-md-3">
-                    <div class="union-jack-accent"></div>
-                </div>
-                <div class="col-md-6 text-center">
-                    <a href="/" class="brand-link">
-                        <h1 class="brand-title">THE SENSIBLE CITIZEN</h1>
-                        <p class="brand-tagline">Accountability • Analysis • Action</p>
-                        <div class="brand-underline"></div>
-                    </a>
-                </div>
-                <div class="col-md-3 text-end">
-                    <button class="search-toggle" @onclick="ToggleSearch">
-                        <i class="bi bi-search"></i>
-                    </button>
+                <div class="col-12 text-center d-flex justify-content-center align-items-center">
+                    <!-- Left flag -->
+                    <div class="union-jack-container me-5">
+                        <img src="/images/union-jack.jpg" alt="Union Jack" class="union-jack-flag" />
+                    </div>
+
+                    <!-- Main title -->
+                    <div class="brand-content">
+                        <a href="/" class="brand-link">
+                            <h1 class="brand-title">THE SENSIBLE CITIZEN</h1>
+                            <p class="brand-tagline">Accountability • Analysis • Action</p>
+                            <div class="brand-underline"></div>
+                        </a>
+                    </div>
+
+                    <!-- Right flag -->
+                    <div class="union-jack-container ms-5">
+                        <img src="/images/union-jack.jpg" alt="Union Jack" class="union-jack-flag" />
+                    </div>
                 </div>
             </div>
+
+            <!-- Search button moved to corner -->
+            <button class="search-toggle" @onclick="ToggleSearch">
+                <i class="bi bi-search"></i>
+            </button>
         </div>
     </div>
 
@@ -142,6 +152,10 @@
         padding: 30px 0;
         border-bottom: 1px solid #e0e0e0;
         position: relative;
+    }
+
+    .brand-content {
+        text-align: center;
     }
 
     .union-jack-accent {
@@ -316,31 +330,74 @@
         border: 1px solid #ddd;
     }
 
-    @@keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    /* Position search button absolutely */
+    .search-toggle {
+        position: absolute;
+        right: 30px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: 1px solid #ddd;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
     }
 
+    .union-jack-container {
+        width: 80px;
+        height: 40px;
+        position: relative;
+        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+        border: 1px solid #ddd;
+        border-radius: 2px;
+        overflow: hidden;
+        flex-shrink: 0; /* Prevent flags from shrinking */
+    }
+
+    .union-jack-flag {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Optional: slight hover effect */
+    .union-jack-container:hover {
+        filter: drop-shadow(2px 2px 6px rgba(0,0,0,0.4));
+        transform: scale(1.02);
+        transition: all 0.2s ease;
+    }
+
+    /* Mobile adjustments */
     @@media (max-width: 768px) {
-        .brand-title {
-            font-size: 1.5rem;
-        }
+        .union-jack-container
 
-        .nav-topics {
-            overflow-x: auto;
-            justify-content: flex-start;
-        }
+    {
+        width: 50px;
+        height: 25px;
+    }
 
-        .union-jack-accent {
-            display: none;
-        }
+    .union-jack-container.me-4 {
+        margin-right: 10px !important;
+    }
+
+    .union-jack-container.ms-4 {
+        margin-left: 10px !important;
+    }
+
+    .brand-title {
+        font-size: 1.2rem;
+    }
+
+    .search-toggle {
+        right: 15px;
+    }
+
     }
 </style>
 

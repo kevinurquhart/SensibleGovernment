@@ -10,12 +10,14 @@ public class PostService
     private readonly HtmlSanitizerService _sanitizer;
     private readonly InputValidationService _validationService;
     private readonly ILogger<PostService> _logger;
+    private readonly CommentModerationService _moderationService;
 
     public PostService(
         PostDataAccess postDataAccess,
         CommentDataAccess commentDataAccess,
         HtmlSanitizerService sanitizer,
         InputValidationService validationService,
+        CommentModerationService moderationService, // Add this
         ILogger<PostService> logger)
     {
         _postDataAccess = postDataAccess;
@@ -23,6 +25,7 @@ public class PostService
         _sanitizer = sanitizer;
         _validationService = validationService;
         _logger = logger;
+        _moderationService = moderationService;
     }
 
     public async Task<List<Post>> GetAllPostsAsync()
@@ -136,25 +139,47 @@ public class PostService
         }
     }
 
-    public async Task<Comment> AddCommentAsync(Comment comment)
+    public async Task<Comment> AddCommentAsync(Comment comment, User author)
     {
         try
         {
-            // Validate and sanitize
+            // Validate
             var validation = _validationService.ValidateComment(comment.Content);
             if (!validation.IsValid)
             {
                 throw new InvalidOperationException(validation.GetErrorString());
             }
 
-            // Sanitize for database
-            comment.Content = _sanitizer.SanitizeForDatabase(comment.Content);
+            // Moderate
+            var moderation = await _moderationService.ModerateCommentAsync(comment.Content, author);
+
+            if (moderation.IsBlocked)
+            {
+                throw new InvalidOperationException(moderation.BlockReason ?? "Comment blocked");
+            }
+
+            // Apply moderated content
+            comment.Content = _sanitizer.SanitizeForDatabase(moderation.ModeratedContent);
+            comment.IsHidden = !moderation.IsVisible;
+            comment.RequiresReview = moderation.RequiresReview;
+
+            if (moderation.IsShadowBanned)
+            {
+                comment.IsHidden = false; // Store as not hidden, but filter in display
+                comment.ModerationReason = "Shadow banned";
+            }
+
             comment.Created = DateTime.Now;
 
             var commentId = await _commentDataAccess.CreateCommentAsync(comment);
             comment.Id = commentId;
 
-            // Get the full comment with author info
+            // Log if requires review
+            if (moderation.RequiresReview)
+            {
+                _logger.LogWarning($"Comment {commentId} flagged for review: {moderation.FlagReason}");
+            }
+
             var comments = await _commentDataAccess.GetRecentCommentsAsync(1);
             return comments.FirstOrDefault(c => c.Id == commentId) ?? comment;
         }

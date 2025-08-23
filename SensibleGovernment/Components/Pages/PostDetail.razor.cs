@@ -13,6 +13,7 @@ namespace SensibleGovernment.Components.Pages
         [Inject] private HtmlSanitizerService HtmlSanitizer { get; set; } = default!;
         [Inject] private InputValidationService ValidationService { get; set; } = default!;
 
+        private User? currentUser;
         private Post? post;
         private Comment newComment = new();
         private bool loading = true;
@@ -44,7 +45,7 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
-            authState = await AuthStateProvider.GetAuthenticationStateAsync();  // Changed from AuthProvider
+            authState = await AuthStateProvider.GetAuthenticationStateAsync();
 
             if (authState?.User.Identity?.IsAuthenticated == true)
             {
@@ -53,9 +54,9 @@ namespace SensibleGovernment.Components.Pages
                 {
                     currentUserId = userId;
 
-                    // Check if user is active
-                    var user = await AuthService.GetUserByIdAsync(userId);
-                    isUserActive = user?.IsActive ?? false;
+                    // Get the full user object
+                    currentUser = await AuthService.GetUserByIdAsync(userId);
+                    isUserActive = currentUser?.IsActive ?? false;
                 }
             }
 
@@ -93,7 +94,7 @@ namespace SensibleGovernment.Components.Pages
 
         private async Task AddComment()
         {
-            if (currentUserId == 0 || string.IsNullOrWhiteSpace(newComment.Content))
+            if (currentUserId == 0 || currentUser == null || string.IsNullOrWhiteSpace(newComment.Content))
                 return;
 
             addingComment = true;
@@ -117,13 +118,13 @@ namespace SensibleGovernment.Components.Pages
                     ParentCommentId = null // Top-level comment
                 };
 
-                await PostService.AddCommentAsync(comment);
+                await PostService.AddCommentAsync(comment, currentUser); // Pass the user
                 newComment = new Comment();
                 await LoadPost();
             }
             catch (Exception ex)
             {
-                commentError = "Failed to post comment. Please try again.";
+                commentError = ex.Message.Contains("blocked") ? ex.Message : "Failed to post comment. Please try again.";
                 Console.WriteLine($"Error posting comment: {ex.Message}");
             }
             finally
@@ -234,7 +235,7 @@ namespace SensibleGovernment.Components.Pages
 
         private async Task AddReply()
         {
-            if (currentUserId == 0 || string.IsNullOrWhiteSpace(replyComment.Content))
+            if (currentUserId == 0 || currentUser == null || string.IsNullOrWhiteSpace(replyComment.Content))
                 return;
 
             addingReply = true;
@@ -258,7 +259,7 @@ namespace SensibleGovernment.Components.Pages
                     ParentCommentId = isReplyingTo
                 };
 
-                await PostService.AddCommentAsync(reply);
+                await PostService.AddCommentAsync(reply, currentUser); // Pass the user
 
                 // Reset form
                 CancelReply();
@@ -268,7 +269,7 @@ namespace SensibleGovernment.Components.Pages
             }
             catch (Exception ex)
             {
-                replyError = "Failed to post reply. Please try again.";
+                replyError = ex.Message.Contains("blocked") ? ex.Message : "Failed to post reply. Please try again.";
                 Console.WriteLine($"Error posting reply: {ex.Message}");
             }
             finally

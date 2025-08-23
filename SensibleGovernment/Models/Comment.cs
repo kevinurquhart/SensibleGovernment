@@ -14,4 +14,14 @@ public class Comment
     public int? ParentCommentId { get; set; }
     public Comment? ParentComment { get; set; }
     public List<Comment> Replies { get; set; } = new();
+
+    // Add moderation properties
+    public bool IsHidden { get; set; } = false;
+    public bool RequiresReview { get; set; } = false;
+    public string? ModerationReason { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+    public int? ReviewedByUserId { get; set; }
+
+    // For tracking reports against this comment
+    public int ReportCount { get; set; } = 0;
 }

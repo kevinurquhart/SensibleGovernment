@@ -44,6 +44,11 @@ public class User
     public List<UserReport> ReportsSubmitted { get; set; } = new();
     public List<UserReport> ReportsAgainst { get; set; } = new();
     public List<AdminActionLog> AdminActions { get; set; } = new();
+
+    // Shadow ban property
+    public bool IsShadowBanned { get; set; } = false;
+    public DateTime? ShadowBannedUntil { get; set; }
+    public string? ShadowBanReason { get; set; }
 }
 
 // Keep the existing UserReport model
