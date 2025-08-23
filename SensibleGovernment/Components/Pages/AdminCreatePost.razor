@@ -151,8 +151,9 @@ else
                                 <div class="alert alert-info mb-2">
                                     <i class="bi bi-info-circle"></i> Rich text editor allows basic HTML formatting. Use the source code view for advanced editing.
                                 </div>
-                                <textarea class="form-control" rows="12" @bind="newPost.Content" @bind:event="oninput"
-                                         @oninput="OnFieldChanged"
+                                <textarea class="form-control" rows="12" 
+                                         value="@newPost.Content"
+                                         @oninput="@((e) => { newPost.Content = e.Value?.ToString() ?? ""; OnFieldChanged(); })"
                                          placeholder="Write the factual content of your article. You can use HTML tags like <b>, <i>, <p>, etc." />
                             }
                             else
@@ -176,8 +177,9 @@ else
                             <label class="form-label">Editorial Opinion (Optional)</label>
                             @if (useRichTextEditor)
                             {
-                                <textarea class="form-control" rows="8" @bind="newPost.Opinion" @bind:event="oninput"
-                                         @oninput="OnFieldChanged"
+                                <textarea class="form-control" rows="8"
+                                         value ="newPost.Opinion"
+                                         @oninput="@((e) => { newPost.Opinion = e.Value?.ToString() ?? ""; OnFieldChanged(); })"
                                          placeholder="Add your editorial perspective or analysis. HTML formatting is supported." />
                             }
                             else
