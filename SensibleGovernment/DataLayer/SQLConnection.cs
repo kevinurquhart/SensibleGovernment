@@ -11,9 +11,20 @@ public class SQLConnection
 
     public SQLConnection(IConfiguration configuration, ILogger<SQLConnection> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
         _logger = logger;
+
+        try
+        {
+            _connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+            _logger.LogInformation($"SQLConnection initialized with connection string (first 30 chars): {_connectionString.Substring(0, Math.Min(30, _connectionString.Length))}...");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize SQLConnection");
+            throw;
+        }
     }
 
     /// <summary>
@@ -21,6 +32,8 @@ public class SQLConnection
     /// </summary>
     public async Task<DataTable> ExecuteDataTableAsync(string storedProcName, SqlParameter[]? parameters = null)
     {
+        _logger.LogDebug($"Executing stored procedure: {storedProcName}");
+
         try
         {
             using var connection = new SqlConnection(_connectionString);
@@ -41,6 +54,8 @@ public class SQLConnection
             await connection.OpenAsync();
             adapter.Fill(dataTable);
 
+            _logger.LogDebug($"Stored procedure {storedProcName} returned {dataTable.Rows.Count} rows");
+
             return dataTable;
         }
         catch (Exception ex)
@@ -55,6 +70,8 @@ public class SQLConnection
     /// </summary>
     public async Task<DataSet> ExecuteDataSetAsync(string storedProcName, SqlParameter[]? parameters = null)
     {
+        _logger.LogDebug($"Executing stored procedure (DataSet): {storedProcName}");
+
         try
         {
             using var connection = new SqlConnection(_connectionString);
@@ -74,6 +91,8 @@ public class SQLConnection
 
             await connection.OpenAsync();
             adapter.Fill(dataSet);
+
+            _logger.LogDebug($"Stored procedure {storedProcName} returned {dataSet.Tables.Count} tables");
 
             return dataSet;
         }

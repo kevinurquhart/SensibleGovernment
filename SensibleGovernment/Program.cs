@@ -2,9 +2,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 using SensibleGovernment.Components;
-using SensibleGovernment.Data;
 using SensibleGovernment.DataLayer;
 using SensibleGovernment.DataLayer.DataAccess;
 using SensibleGovernment.Services;
@@ -27,10 +25,7 @@ if (string.IsNullOrEmpty(connectionString))
     throw new Exception("Connection string 'DefaultConnection' not found or not initialised.");
 }
 
-//// Add EF Core for SQL Server
-//builder.Services.AddDbContext<AppDbContext>(options =>
-//    options.UseSqlServer(connectionString));
-
+// REMOVED EF Core - now using SQL Data Layer
 // Add SQL Data Layer
 builder.Services.AddScoped<SQLConnection>();
 builder.Services.AddScoped<PostDataAccess>();
@@ -40,18 +35,6 @@ builder.Services.AddScoped<AdminDataAccess>();
 
 // Add HttpContext accessor for IP tracking
 builder.Services.AddHttpContextAccessor();
-
-//// Add session support - MUST BE BEFORE AddAuthentication
-//builder.Services.AddDistributedMemoryCache(); // For session storage
-//builder.Services.AddSession(options =>
-//{
-//    options.IdleTimeout = TimeSpan.FromMinutes(30);
-//    options.Cookie.HttpOnly = true;
-//    options.Cookie.IsEssential = true;
-//    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-//    options.Cookie.SameSite = SameSiteMode.Strict;
-//    options.Cookie.Name = "SensibleGov.Session";
-//});
 
 // Add data protection for secure storage
 builder.Services.AddDataProtection()
@@ -79,11 +62,8 @@ builder.Services.AddAuthentication(options =>
 // Add authorization with policies
 builder.Services.AddAuthorization(options =>
 {
-    // Change this line to use Role instead of RequireRole
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
     options.AddPolicy("ActiveUser", policy => policy.RequireClaim("IsActive", "True"));
-
-    // Optional: Add a default policy
     options.FallbackPolicy = null; // Allow anonymous by default
 });
 
@@ -145,17 +125,8 @@ builder.Logging.AddDebug();
 
 var app = builder.Build();
 
-// Seed the database
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    // Apply migrations
-    await context.Database.MigrateAsync();
-
-    // Seed initial data
-    await DataSeeder.SeedAsync(context);
-}
+// REMOVED EF Core database seeding
+// TODO: Add SQL script to seed initial data if needed
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -185,9 +156,6 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-
-//// Add session middleware - MUST BE BEFORE UseAuthentication
-//app.UseSession();
 
 app.UseRateLimiter();
 app.UseAuthentication();

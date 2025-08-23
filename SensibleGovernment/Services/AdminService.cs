@@ -1,116 +1,153 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SensibleGovernment.Data;
+﻿using SensibleGovernment.DataLayer.DataAccess;
 using SensibleGovernment.Models;
 
 namespace SensibleGovernment.Services;
 
 public class AdminService
 {
-    private readonly AppDbContext _context;
+    private readonly AdminDataAccess _adminDataAccess;
+    private readonly UserDataAccess _userDataAccess;
+    private readonly CommentDataAccess _commentDataAccess;
+    private readonly ILogger<AdminService> _logger;
 
-    public AdminService(AppDbContext context)
+    public AdminService(
+        AdminDataAccess adminDataAccess,
+        UserDataAccess userDataAccess,
+        CommentDataAccess commentDataAccess,
+        ILogger<AdminService> logger)
     {
-        _context = context;
+        _adminDataAccess = adminDataAccess;
+        _userDataAccess = userDataAccess;
+        _commentDataAccess = commentDataAccess;
+        _logger = logger;
     }
 
     // User Management
     public async Task<List<User>> GetAllUsersAsync()
     {
-        return await _context.Users
-            .Include(u => u.Posts)
-            .Include(u => u.Comments)
-            .Include(u => u.ReportsAgainst)
-            .OrderByDescending(u => u.Created)
-            .ToListAsync();
+        try
+        {
+            return await _userDataAccess.GetAllUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all users");
+            return new List<User>();
+        }
     }
 
     public async Task<bool> ToggleUserStatusAsync(int userId)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null || user.IsAdmin) return false;
-
-        user.IsActive = !user.IsActive;
-        await _context.SaveChangesAsync();
-        return user.IsActive;
+        try
+        {
+            return await _userDataAccess.ToggleUserStatusAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling user status: {UserId}", userId);
+            return false;
+        }
     }
 
     public async Task<bool> MakeAdminAsync(int userId)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null) return false;
+        try
+        {
+            var user = await _userDataAccess.GetUserByIdAsync(userId);
+            if (user == null) return false;
 
-        user.IsAdmin = true;
-        await _context.SaveChangesAsync();
-        return true;
+            user.IsAdmin = true;
+            return await _userDataAccess.UpdateUserAsync(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error making user admin: {UserId}", userId);
+            return false;
+        }
     }
 
     // Reporting System
     public async Task<UserReport> ReportUserAsync(UserReport report)
     {
-        _context.UserReports.Add(report);
-        await _context.SaveChangesAsync();
-        return report;
+        try
+        {
+            var reportId = await _adminDataAccess.CreateReportAsync(report);
+            report.Id = reportId;
+            return report;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating report");
+            throw;
+        }
     }
 
     public async Task<List<UserReport>> GetPendingReportsAsync()
     {
-        return await _context.UserReports
-            .Include(r => r.ReportingUser)
-            .Include(r => r.ReportedUser)
-            .Include(r => r.Comment)
-            .Where(r => !r.IsResolved)
-            .OrderByDescending(r => r.Created)
-            .ToListAsync();
+        try
+        {
+            return await _adminDataAccess.GetPendingReportsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting pending reports");
+            return new List<UserReport>();
+        }
     }
 
     public async Task<bool> ResolveReportAsync(int reportId, string resolution)
     {
-        var report = await _context.UserReports.FindAsync(reportId);
-        if (report == null) return false;
-
-        report.IsResolved = true;
-        report.Resolution = resolution;
-        await _context.SaveChangesAsync();
-        return true;
+        try
+        {
+            return await _adminDataAccess.ResolveReportAsync(reportId, resolution);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving report: {ReportId}", reportId);
+            return false;
+        }
     }
 
     // Comment Moderation
     public async Task<List<Comment>> GetRecentCommentsAsync(int days = 7)
     {
-        var cutoff = DateTime.Now.AddDays(-days);
-        return await _context.Comments
-            .Include(c => c.Author)
-            .Include(c => c.Post)
-            .Where(c => c.Created >= cutoff)
-            .OrderByDescending(c => c.Created)
-            .ToListAsync();
+        try
+        {
+            return await _commentDataAccess.GetRecentCommentsAsync(days);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting recent comments");
+            return new List<Comment>();
+        }
     }
 
     public async Task<bool> DeleteCommentAsync(int commentId)
     {
-        var comment = await _context.Comments.FindAsync(commentId);
-        if (comment == null) return false;
-
-        _context.Comments.Remove(comment);
-        await _context.SaveChangesAsync();
-        return true;
+        try
+        {
+            // Admin can delete any comment
+            return await _commentDataAccess.DeleteCommentAsync(commentId, 0, true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting comment: {CommentId}", commentId);
+            return false;
+        }
     }
 
     // Statistics
     public async Task<AdminDashboardStats> GetDashboardStatsAsync()
     {
-        var stats = new AdminDashboardStats
+        try
         {
-            TotalUsers = await _context.Users.CountAsync(),
-            ActiveUsers = await _context.Users.CountAsync(u => u.IsActive),
-            TotalPosts = await _context.Posts.CountAsync(),
-            TotalComments = await _context.Comments.CountAsync(),
-            PendingReports = await _context.UserReports.CountAsync(r => !r.IsResolved),
-            UsersRegisteredToday = await _context.Users.CountAsync(u => u.Created.Date == DateTime.Today),
-            CommentsToday = await _context.Comments.CountAsync(c => c.Created.Date == DateTime.Today)
-        };
-
-        return stats;
+            return await _adminDataAccess.GetDashboardStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting dashboard stats");
+            return new AdminDashboardStats();
+        }
     }
 }
 

@@ -1,111 +1,154 @@
-﻿using Microsoft.EntityFrameworkCore;
-using SensibleGovernment.Data;
+﻿using SensibleGovernment.DataLayer.DataAccess;
 using SensibleGovernment.Models;
 
 namespace SensibleGovernment.Services;
 
 public class PostService
 {
-    private readonly AppDbContext _context;
+    private readonly PostDataAccess _postDataAccess;
+    private readonly CommentDataAccess _commentDataAccess;
+    private readonly ILogger<PostService> _logger;
 
-    public PostService(AppDbContext context)
+    public PostService(PostDataAccess postDataAccess, CommentDataAccess commentDataAccess, ILogger<PostService> logger)
     {
-        _context = context;
+        _postDataAccess = postDataAccess;
+        _commentDataAccess = commentDataAccess;
+        _logger = logger;
     }
 
     public async Task<List<Post>> GetAllPostsAsync()
     {
-        return await _context.Posts
-            .Include(p => p.Author)
-            .Include(p => p.Comments)
-                .ThenInclude(c => c.Author)
-            .Include(p => p.Likes)
-            .Include(p => p.Sources)
-            .OrderByDescending(p => p.Created)
-            .ToListAsync();
+        try
+        {
+            return await _postDataAccess.GetAllPostsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all posts");
+            return new List<Post>();
+        }
     }
 
     public async Task<List<Post>> GetPostsByTopicAsync(string topic)
     {
-        return await _context.Posts
-            .Include(p => p.Author)
-            .Include(p => p.Comments)
-                .ThenInclude(c => c.Author)
-            .Include(p => p.Likes)
-            .Where(p => p.Topic == topic)
-            .OrderByDescending(p => p.Created)
-            .ToListAsync();
+        try
+        {
+            return await _postDataAccess.GetPostsByTopicAsync(topic);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting posts by topic: {Topic}", topic);
+            return new List<Post>();
+        }
     }
 
     public async Task<Post?> GetPostByIdAsync(int id)
     {
-        return await _context.Posts
-            .Include(p => p.Author)
-            .Include(p => p.Comments)
-                .ThenInclude(c => c.Author)
-            .Include(p => p.Likes)
-                .ThenInclude(l => l.User)
-            .Include(p => p.Sources)
-            .FirstOrDefaultAsync(p => p.Id == id);
+        try
+        {
+            var post = await _postDataAccess.GetPostByIdAsync(id);
+
+            // Increment view count asynchronously
+            if (post != null)
+            {
+                _ = Task.Run(async () => await _postDataAccess.IncrementViewCountAsync(id));
+            }
+
+            return post;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting post by id: {PostId}", id);
+            return null;
+        }
     }
 
     public async Task<Post> CreatePostAsync(Post post)
     {
-        post.Created = DateTime.Now;
-        _context.Posts.Add(post);
-        await _context.SaveChangesAsync();
-        return post;
+        try
+        {
+            var newPostId = await _postDataAccess.CreatePostAsync(post);
+            post.Id = newPostId;
+
+            // Reload the post to get all related data
+            var createdPost = await _postDataAccess.GetPostByIdAsync(newPostId);
+            return createdPost ?? post;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating post");
+            throw;
+        }
+    }
+
+    public async Task<bool> UpdatePostAsync(Post post)
+    {
+        try
+        {
+            return await _postDataAccess.UpdatePostAsync(post);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating post: {PostId}", post.Id);
+            return false;
+        }
     }
 
     public async Task<bool> DeletePostAsync(int id)
     {
-        var post = await _context.Posts.FindAsync(id);
-        if (post == null) return false;
-
-        _context.Posts.Remove(post);
-        await _context.SaveChangesAsync();
-        return true;
+        try
+        {
+            return await _postDataAccess.DeletePostAsync(id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting post: {PostId}", id);
+            return false;
+        }
     }
 
     public async Task<bool> ToggleLikeAsync(int postId, int userId)
     {
-        var existingLike = await _context.Likes
-            .FirstOrDefaultAsync(l => l.PostId == postId && l.UserId == userId);
-
-        if (existingLike != null)
+        try
         {
-            _context.Likes.Remove(existingLike);
-            await _context.SaveChangesAsync();
-            return false; // Unlike
+            return await _postDataAccess.ToggleLikeAsync(postId, userId);
         }
-        else
+        catch (Exception ex)
         {
-            var like = new Like { PostId = postId, UserId = userId };
-            _context.Likes.Add(like);
-            await _context.SaveChangesAsync();
-            return true; // Like
+            _logger.LogError(ex, "Error toggling like for post: {PostId}, user: {UserId}", postId, userId);
+            return false;
         }
     }
 
     public async Task<Comment> AddCommentAsync(Comment comment)
     {
-        comment.Created = DateTime.Now;
-        _context.Comments.Add(comment);
-        await _context.SaveChangesAsync();
+        try
+        {
+            comment.Created = DateTime.Now;
+            var commentId = await _commentDataAccess.CreateCommentAsync(comment);
+            comment.Id = commentId;
 
-        // Reload with author info
-        return await _context.Comments
-            .Include(c => c.Author)
-            .FirstAsync(c => c.Id == comment.Id);
+            // Get the full comment with author info
+            var comments = await _commentDataAccess.GetRecentCommentsAsync(1);
+            return comments.FirstOrDefault(c => c.Id == commentId) ?? comment;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding comment");
+            throw;
+        }
     }
 
     public async Task<bool> DeleteCommentAsync(int id, int userId)
     {
-        var comment = await _context.Comments.FindAsync(id);
-        if (comment == null || comment.AuthorId != userId) return false;
-
-        _context.Comments.Remove(comment);
-        await _context.SaveChangesAsync();
-        return true;
+        try
+        {
+            return await _commentDataAccess.DeleteCommentAsync(id, userId, false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting comment: {CommentId}", id);
+            return false;
+        }
     }
 }

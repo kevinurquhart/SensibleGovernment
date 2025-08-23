@@ -1,0 +1,187 @@
+﻿@page "/dbtest"
+@using SensibleGovernment.DataLayer
+@using System.Data.SqlClient
+@inject SQLConnection SqlConnection
+@inject ILogger<DbTest> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Database Connection Test</PageTitle>
+
+<div class="container py-4">
+    <h2>Database Connection Test</h2>
+
+    <div class="card">
+        <div class="card-body">
+            <h5>Connection Status</h5>
+
+            @if (isLoading)
+            {
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Testing...</span>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrEmpty(connectionString))
+                {
+                    <div class="alert alert-info">
+                        <strong>Connection String:</strong><br />
+                        <code>@connectionString</code>
+                    </div>
+                }
+
+                @if (connectionSuccess)
+                {
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> Database connection successful!
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(testResult))
+                    {
+                        <div class="alert alert-info">
+                            <strong>Test Query Result:</strong><br />
+                            <pre>@testResult</pre>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-danger">
+                        <i class="bi bi-x-circle"></i> Database connection failed!
+                        @if (!string.IsNullOrEmpty(errorMessage))
+                        {
+                            <hr />
+                            <strong>Error:</strong>
+
+                            <br />
+                            <pre>@errorMessage</pre>
+                        }
+                    </div>
+                }
+            }
+
+            <button class="btn btn-primary" @onclick="TestConnection" disabled="@isLoading">
+                Test Connection
+            </button>
+
+            <button class="btn btn-secondary" @onclick="TestStoredProcedure" disabled="@isLoading">
+                Test Stored Procedure
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = false;
+    private bool connectionSuccess = false;
+    private string? connectionString;
+    private string? errorMessage;
+    private string? testResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TestConnection();
+    }
+
+    private async Task TestConnection()
+    {
+        isLoading = true;
+        connectionSuccess = false;
+        errorMessage = null;
+        testResult = null;
+
+        try
+        {
+            // Get connection string from configuration
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+
+            connectionString = configuration.GetConnectionString("DefaultConnection");
+            Logger.LogInformation($"Testing connection with: {connectionString}");
+
+            // Test direct connection
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                // Run a simple query
+                using (var command = new SqlCommand("SELECT DB_NAME() as DatabaseName, @@VERSION as ServerVersion", connection))
+                {
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            testResult = $"Database: {reader["DatabaseName"]}\n";
+                            testResult += $"Server Version: {reader["ServerVersion"].ToString()?.Substring(0, 50)}...";
+                        }
+                    }
+                }
+
+                connectionSuccess = true;
+                Logger.LogInformation("Database connection successful!");
+            }
+        }
+        catch (Exception ex)
+        {
+            connectionSuccess = false;
+            errorMessage = ex.ToString();
+            Logger.LogError(ex, "Database connection failed");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task TestStoredProcedure()
+    {
+        isLoading = true;
+        errorMessage = null;
+        testResult = null;
+
+        try
+        {
+            // Test if stored procedures exist
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                // Check if a stored procedure exists
+                using (var command = new SqlCommand(@"
+                    SELECT COUNT(*) as SPCount
+                    FROM sys.procedures
+                    WHERE name LIKE 'posts_%' OR name LIKE 'users_%'", connection))
+                {
+                    var count = (int)await command.ExecuteScalarAsync();
+                    testResult = $"Found {count} stored procedures in database";
+                }
+
+                // Try to call GetAllPosts
+                using (var command = new SqlCommand("posts_GetAll", connection))
+                {
+                    command.CommandType = System.Data.CommandType.StoredProcedure;
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        var postCount = 0;
+                        while (await reader.ReadAsync())
+                        {
+                            postCount++;
+                        }
+                        testResult += $"\nFound {postCount} posts in database";
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Stored Procedure Error: {ex.Message}";
+            Logger.LogError(ex, "Stored procedure test failed");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
