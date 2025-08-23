@@ -25,7 +25,6 @@ if (string.IsNullOrEmpty(connectionString))
     throw new Exception("Connection string 'DefaultConnection' not found or not initialised.");
 }
 
-// REMOVED EF Core - now using SQL Data Layer
 // Add SQL Data Layer
 builder.Services.AddScoped<SQLConnection>();
 builder.Services.AddScoped<PostDataAccess>();
@@ -125,7 +124,6 @@ builder.Logging.AddDebug();
 
 var app = builder.Build();
 
-// REMOVED EF Core database seeding
 // TODO: Add SQL script to seed initial data if needed
 
 // Configure the HTTP request pipeline.
