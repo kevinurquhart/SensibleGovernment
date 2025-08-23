@@ -1,30 +1,33 @@
 @page "/register"
 @using SensibleGovernment.Services
 @using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
-<PageTitle>Register - Central News</PageTitle>
+<PageTitle>Register - The Sensible Citizen</PageTitle>
 
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-6">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h2 class="card-title mb-4">Create Your Account</h2>
+                    <h2 class="card-title mb-4">
+                        <i class="bi bi-person-plus"></i> Create Your Account
+                    </h2>
 
                     @if (!string.IsNullOrEmpty(errorMessage))
                     {
                         <div class="alert alert-danger">
-                            @errorMessage
+                            <i class="bi bi-exclamation-triangle"></i> @errorMessage
                         </div>
                     }
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
                         <div class="alert alert-success">
-                            @successMessage
+                            <i class="bi bi-check-circle"></i> @successMessage
                         </div>
                     }
 
@@ -33,40 +36,140 @@
 
                         <div class="mb-3">
                             <label class="form-label">Username</label>
-                            <InputText class="form-control" @bind-Value="registerModel.UserName" />
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <InputText class="form-control" @bind-Value="registerModel.UserName"
+                                           @oninput="CheckUsernameStrength" />
+                            </div>
                             <ValidationMessage For="@(() => registerModel.UserName)" />
+                            <small class="form-text text-muted">3-50 characters, letters and numbers only</small>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Email</label>
-                            <InputText class="form-control" type="email" @bind-Value="registerModel.Email" />
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <InputText class="form-control" type="email" @bind-Value="registerModel.Email" />
+                            </div>
                             <ValidationMessage For="@(() => registerModel.Email)" />
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Password</label>
-                            <InputText class="form-control" type="password" @bind-Value="registerModel.Password" />
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <InputText class="form-control" type="@(showPassword ? "text" : "password")"
+                                           @bind-Value="registerModel.Password"
+                                           @oninput="CheckPasswordStrength" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="TogglePassword">
+                                    <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                                </button>
+                            </div>
                             <ValidationMessage For="@(() => registerModel.Password)" />
-                            <small class="form-text text-muted">At least 6 characters</small>
+
+                            <!-- Password Strength Indicator -->
+                            @if (!string.IsNullOrEmpty(registerModel.Password))
+                            {
+                                <div class="progress mt-2" style="height: 5px;">
+                                    <div class="progress-bar @passwordStrengthClass" role="progressbar"
+                                         style="width: @passwordStrengthPercent%"></div>
+                                </div>
+                                <small class="form-text @passwordStrengthTextClass">
+                                    @passwordStrengthText
+                                </small>
+                            }
+
+                            <div class="mt-2">
+                                <small class="text-muted">Password must contain:</small>
+                                <ul class="small text-muted mb-0">
+                                    <li class="@(passwordChecks.MinLength ? "text-success" : "")">
+                                        <i class="bi @(passwordChecks.MinLength ? "bi-check-circle-fill" : "bi-circle")"></i>
+                                        At least 8 characters
+                                    </li>
+                                    <li class="@(passwordChecks.HasUpper ? "text-success" : "")">
+                                        <i class="bi @(passwordChecks.HasUpper ? "bi-check-circle-fill" : "bi-circle")"></i>
+                                        One uppercase letter
+                                    </li>
+                                    <li class="@(passwordChecks.HasLower ? "text-success" : "")">
+                                        <i class="bi @(passwordChecks.HasLower ? "bi-check-circle-fill" : "bi-circle")"></i>
+                                        One lowercase letter
+                                    </li>
+                                    <li class="@(passwordChecks.HasNumber ? "text-success" : "")">
+                                        <i class="bi @(passwordChecks.HasNumber ? "bi-check-circle-fill" : "bi-circle")"></i>
+                                        One number
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Confirm Password</label>
-                            <InputText class="form-control" type="password" @bind-Value="registerModel.ConfirmPassword" />
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key-fill"></i></span>
+                                <InputText class="form-control" type="@(showPassword ? "text" : "password")"
+                                           @bind-Value="registerModel.ConfirmPassword" />
+                            </div>
                             <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
+                            @if (!string.IsNullOrEmpty(registerModel.ConfirmPassword) &&
+                                                        registerModel.Password != registerModel.ConfirmPassword)
+                            {
+                                <small class="text-danger">Passwords do not match</small>
+                            }
                         </div>
 
-                        <button class="btn btn-primary w-100" type="submit" disabled="@isLoading">
+                        <!-- CAPTCHA -->
+                        <div class="mb-3">
+                            <label class="form-label">Security Check</label>
+                            <div class="alert alert-light">
+                                <small>What is @captchaA + @captchaB?</small>
+                                <InputNumber class="form-control mt-2" @bind-Value="captchaAnswer" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="registerModel.AgreeToTerms" id="agreeTerms" />
+                                <label class="form-check-label" for="agreeTerms">
+                                    I agree to the <a href="/terms" target="_blank">Terms of Service</a> and
+                                    <a href="/privacy" target="_blank">Privacy Policy</a>
+                                </label>
+                            </div>
+                            <ValidationMessage For="@(() => registerModel.AgreeToTerms)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="registerModel.SubscribeNewsletter" id="newsletter" />
+                                <label class="form-check-label" for="newsletter">
+                                    Send me The Daily Dissent newsletter (optional)
+                                </label>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary w-100" type="submit" disabled="@(isLoading || !IsFormValid())">
                             @if (isLoading)
                             {
                                 <span class="spinner-border spinner-border-sm me-2" role="status"></span>
                             }
-                            Register
+                            <i class="bi bi-person-plus"></i> Create Account
                         </button>
                     </EditForm>
 
-                    <div class="mt-3 text-center">
-                        <a href="/login">Already have an account? Login</a>
+                    <hr class="my-4" />
+
+                    <div class="text-center">
+                        <span>Already have an account?</span>
+                        <a href="/login" class="text-decoration-none ms-1">
+                            <strong>Sign in</strong>
+                        </a>
+                    </div>
+
+                    <div class="alert alert-info mt-4">
+                        <h6><i class="bi bi-shield-check"></i> Your Security Matters</h6>
+                        <small>
+                            We use industry-standard encryption to protect your password and personal information.
+                            Your password is hashed using BCrypt and never stored in plain text.
+                        </small>
                     </div>
                 </div>
             </div>
@@ -79,6 +182,19 @@
     private bool isLoading = false;
     private string? errorMessage;
     private string? successMessage;
+    private bool showPassword = false;
+
+    // Password strength
+    private string passwordStrengthText = "";
+    private string passwordStrengthClass = "";
+    private string passwordStrengthTextClass = "";
+    private int passwordStrengthPercent = 0;
+    private PasswordChecks passwordChecks = new();
+
+    // CAPTCHA
+    private int captchaA;
+    private int captchaB;
+    private int captchaAnswer;
 
     protected override void OnInitialized()
     {
@@ -86,6 +202,85 @@
         {
             Navigation.NavigateTo("/");
         }
+        GenerateCaptcha();
+    }
+
+    private void GenerateCaptcha()
+    {
+        var random = new Random();
+        captchaA = random.Next(1, 10);
+        captchaB = random.Next(1, 10);
+    }
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private void CheckUsernameStrength(ChangeEventArgs e)
+    {
+        registerModel.UserName = e.Value?.ToString() ?? "";
+    }
+
+    private void CheckPasswordStrength(ChangeEventArgs e)
+    {
+        var password = e.Value?.ToString() ?? "";
+        registerModel.Password = password;
+
+        // Reset checks
+        passwordChecks = new PasswordChecks
+        {
+            MinLength = password.Length >= 8,
+            HasUpper = password.Any(char.IsUpper),
+            HasLower = password.Any(char.IsLower),
+            HasNumber = password.Any(char.IsDigit),
+            HasSpecial = password.Any(ch => !char.IsLetterOrDigit(ch))
+        };
+
+        // Calculate strength
+        var strength = 0;
+        if (passwordChecks.MinLength) strength++;
+        if (passwordChecks.HasUpper) strength++;
+        if (passwordChecks.HasLower) strength++;
+        if (passwordChecks.HasNumber) strength++;
+        if (passwordChecks.HasSpecial) strength++;
+        if (password.Length >= 12) strength++;
+
+        // Set UI indicators
+        if (strength <= 2)
+        {
+            passwordStrengthText = "Weak password";
+            passwordStrengthClass = "bg-danger";
+            passwordStrengthTextClass = "text-danger";
+            passwordStrengthPercent = 33;
+        }
+        else if (strength <= 4)
+        {
+            passwordStrengthText = "Moderate password";
+            passwordStrengthClass = "bg-warning";
+            passwordStrengthTextClass = "text-warning";
+            passwordStrengthPercent = 66;
+        }
+        else
+        {
+            passwordStrengthText = "Strong password";
+            passwordStrengthClass = "bg-success";
+            passwordStrengthTextClass = "text-success";
+            passwordStrengthPercent = 100;
+        }
+    }
+
+    private bool IsFormValid()
+    {
+        return !string.IsNullOrEmpty(registerModel.UserName) &&
+               !string.IsNullOrEmpty(registerModel.Email) &&
+               !string.IsNullOrEmpty(registerModel.Password) &&
+               registerModel.Password == registerModel.ConfirmPassword &&
+               registerModel.AgreeToTerms &&
+               passwordChecks.MinLength &&
+               passwordChecks.HasUpper &&
+               passwordChecks.HasLower &&
+               passwordChecks.HasNumber;
     }
 
     private async Task HandleRegister()
@@ -96,27 +291,39 @@
 
         try
         {
-            if (registerModel.Password != registerModel.ConfirmPassword)
+            // Validate CAPTCHA
+            if (captchaAnswer != (captchaA + captchaB))
             {
-                errorMessage = "Passwords do not match";
+                errorMessage = "Incorrect security check answer. Please try again.";
+                GenerateCaptcha();
                 isLoading = false;
                 return;
             }
 
-            var (success, message) = await AuthService.RegisterAsync(
+            // Additional validation
+            if (!IsFormValid())
+            {
+                errorMessage = "Please complete all required fields correctly.";
+                isLoading = false;
+                return;
+            }
+
+            var (success, message, _) = await AuthService.RegisterAsync(
                 registerModel.UserName,
                 registerModel.Email,
-                registerModel.Password);
+                registerModel.Password,
+                registerModel.ConfirmPassword);
 
             if (success)
             {
                 successMessage = message + " Redirecting...";
-                await Task.Delay(1000); // Brief delay to show success message
+                await Task.Delay(1000);
                 Navigation.NavigateTo("/");
             }
             else
             {
                 errorMessage = message;
+                GenerateCaptcha(); // Regenerate CAPTCHA on error
             }
         }
         catch (Exception ex)
@@ -134,6 +341,7 @@
     {
         [Required(ErrorMessage = "Username is required")]
         [StringLength(50, MinimumLength = 3, ErrorMessage = "Username must be between 3 and 50 characters")]
+        [RegularExpression(@"^[a-zA-Z0-9_]+$", ErrorMessage = "Username can only contain letters, numbers, and underscores")]
         public string UserName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email is required")]
@@ -141,11 +349,26 @@
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Password is required")]
-        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters")]
         public string Password { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Please confirm your password")]
         [Compare(nameof(Password), ErrorMessage = "Passwords do not match")]
         public string ConfirmPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "You must agree to the terms")]
+        [Range(typeof(bool), "true", "true", ErrorMessage = "You must agree to the terms")]
+        public bool AgreeToTerms { get; set; } = false;
+
+        public bool SubscribeNewsletter { get; set; } = false;
+    }
+
+    private class PasswordChecks
+    {
+        public bool MinLength { get; set; }
+        public bool HasUpper { get; set; }
+        public bool HasLower { get; set; }
+        public bool HasNumber { get; set; }
+        public bool HasSpecial { get; set; }
     }
 }

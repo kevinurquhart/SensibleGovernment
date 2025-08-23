@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Like> Likes => Set<Like>();
     public DbSet<PostSource> PostSources => Set<PostSource>();
     public DbSet<UserReport> UserReports => Set<UserReport>();
+    public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,5 +75,12 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(ur => ur.CommentId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // AdminActionLog relationships
+        modelBuilder.Entity<AdminActionLog>()
+            .HasOne(a => a.User)
+            .WithMany(u => u.AdminActions)
+            .HasForeignKey(a => a.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
