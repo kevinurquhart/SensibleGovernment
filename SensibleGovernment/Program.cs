@@ -109,6 +109,28 @@ builder.Services.AddRateLimiter(options =>
         options.Window = TimeSpan.FromMinutes(15);
         options.AutoReplenishment = true;
     });
+
+    // Specific limiter for comment posting
+    options.AddPolicy("CommentPostLimit", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                AutoReplenishment = true
+            }));
+
+    // Strict limiter for authentication attempts
+    options.AddPolicy("AuthenticationLimit", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                AutoReplenishment = true
+            }));
 });
 
 builder.Services.AddBlazorBootstrap();
@@ -116,6 +138,10 @@ builder.Services.AddBlazorBootstrap();
 // Add services to the container with authentication
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Add services
+builder.Services.AddScoped<HtmlSanitizerService>();
+builder.Services.AddScoped<InputValidationService>();
 
 // Configure logging
 builder.Logging.ClearProviders();

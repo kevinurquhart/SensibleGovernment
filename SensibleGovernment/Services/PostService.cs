@@ -7,12 +7,21 @@ public class PostService
 {
     private readonly PostDataAccess _postDataAccess;
     private readonly CommentDataAccess _commentDataAccess;
+    private readonly HtmlSanitizerService _sanitizer;
+    private readonly InputValidationService _validationService;
     private readonly ILogger<PostService> _logger;
 
-    public PostService(PostDataAccess postDataAccess, CommentDataAccess commentDataAccess, ILogger<PostService> logger)
+    public PostService(
+        PostDataAccess postDataAccess,
+        CommentDataAccess commentDataAccess,
+        HtmlSanitizerService sanitizer,
+        InputValidationService validationService,
+        ILogger<PostService> logger)
     {
         _postDataAccess = postDataAccess;
         _commentDataAccess = commentDataAccess;
+        _sanitizer = sanitizer;
+        _validationService = validationService;
         _logger = logger;
     }
 
@@ -67,6 +76,13 @@ public class PostService
     {
         try
         {
+            // Sanitize post content and opinion
+            post.Content = _sanitizer.SanitizeForDatabase(post.Content);
+            if (!string.IsNullOrEmpty(post.Opinion))
+            {
+                post.Opinion = _sanitizer.SanitizeForDatabase(post.Opinion);
+            }
+
             var newPostId = await _postDataAccess.CreatePostAsync(post);
             post.Id = newPostId;
 
@@ -124,7 +140,17 @@ public class PostService
     {
         try
         {
+            // Validate and sanitize
+            var validation = _validationService.ValidateComment(comment.Content);
+            if (!validation.IsValid)
+            {
+                throw new InvalidOperationException(validation.GetErrorString());
+            }
+
+            // Sanitize for database
+            comment.Content = _sanitizer.SanitizeForDatabase(comment.Content);
             comment.Created = DateTime.Now;
+
             var commentId = await _commentDataAccess.CreateCommentAsync(comment);
             comment.Id = commentId;
 

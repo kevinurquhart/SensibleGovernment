@@ -10,6 +10,9 @@ namespace SensibleGovernment.Components.Pages
     {
         [Parameter] public int PostId { get; set; }
 
+        [Inject] private HtmlSanitizerService HtmlSanitizer { get; set; } = default!;
+        [Inject] private InputValidationService ValidationService { get; set; } = default!;
+
         private Post? post;
         private Comment newComment = new();
         private bool loading = true;
@@ -18,6 +21,12 @@ namespace SensibleGovernment.Components.Pages
         private AuthenticationState? authState;
         private int currentUserId = 0;
         private bool isUserActive = true;
+
+        private int? isReplyingTo = null;
+        private Comment replyComment = new();
+        private bool addingReply = false;
+        private string? commentError;
+        private string? replyError;
 
         // Report modal
         private bool showReportModal = false;
@@ -88,19 +97,39 @@ namespace SensibleGovernment.Components.Pages
                 return;
 
             addingComment = true;
+            commentError = null;
 
-            var comment = new Comment
+            try
             {
-                Content = newComment.Content,
-                PostId = PostId,
-                AuthorId = currentUserId
-            };
+                // Validate
+                var validation = ValidationService.ValidateComment(newComment.Content);
+                if (!validation.IsValid)
+                {
+                    commentError = validation.GetErrorString();
+                    return;
+                }
 
-            await PostService.AddCommentAsync(comment);
-            newComment = new Comment();
-            await LoadPost();
+                var comment = new Comment
+                {
+                    Content = newComment.Content,
+                    PostId = PostId,
+                    AuthorId = currentUserId,
+                    ParentCommentId = null // Top-level comment
+                };
 
-            addingComment = false;
+                await PostService.AddCommentAsync(comment);
+                newComment = new Comment();
+                await LoadPost();
+            }
+            catch (Exception ex)
+            {
+                commentError = "Failed to post comment. Please try again.";
+                Console.WriteLine($"Error posting comment: {ex.Message}");
+            }
+            finally
+            {
+                addingComment = false;
+            }
         }
 
         private async Task DeleteComment(int commentId)
@@ -187,6 +216,80 @@ namespace SensibleGovernment.Components.Pages
                 return $"{(int)timeSpan.TotalDays} days ago";
 
             return dateTime.ToString("MMM dd, yyyy 'at' h:mm tt");
+        }
+
+        private void StartReply(Comment parentComment)
+        {
+            isReplyingTo = parentComment.Id;
+            replyComment = new Comment { ParentCommentId = parentComment.Id };
+            replyError = null;
+        }
+
+        private void CancelReply()
+        {
+            isReplyingTo = null;
+            replyComment = new Comment();
+            replyError = null;
+        }
+
+        private async Task AddReply()
+        {
+            if (currentUserId == 0 || string.IsNullOrWhiteSpace(replyComment.Content))
+                return;
+
+            addingReply = true;
+            replyError = null;
+
+            try
+            {
+                // Validate
+                var validation = ValidationService.ValidateComment(replyComment.Content);
+                if (!validation.IsValid)
+                {
+                    replyError = validation.GetErrorString();
+                    return;
+                }
+
+                var reply = new Comment
+                {
+                    Content = replyComment.Content,
+                    PostId = PostId,
+                    AuthorId = currentUserId,
+                    ParentCommentId = isReplyingTo
+                };
+
+                await PostService.AddCommentAsync(reply);
+
+                // Reset form
+                CancelReply();
+
+                // Reload post to show new reply
+                await LoadPost();
+            }
+            catch (Exception ex)
+            {
+                replyError = "Failed to post reply. Please try again.";
+                Console.WriteLine($"Error posting reply: {ex.Message}");
+            }
+            finally
+            {
+                addingReply = false;
+            }
+        }
+
+        private bool HasReplies(Comment comment)
+        {
+            return post?.Comments.Any(c => c.ParentCommentId == comment.Id) ?? false;
+        }
+
+        private int GetReplyCount(Comment comment)
+        {
+            return post?.Comments.Count(c => c.ParentCommentId == comment.Id) ?? 0;
+        }
+
+        private string SanitizeCommentForDisplay(string content)
+        {
+            return HtmlSanitizer.SanitizeHtml(content);
         }
     }
 }

@@ -200,27 +200,35 @@ else
                         {
                             @if (isUserActive)
                             {
-                                <div class="mb-4">
-                                    <div class="d-flex align-items-start">
-                                        <img src="https://ui-avatars.com/api/?name=@authState.User.Identity?.Name&background=random"
-                                             class="rounded-circle me-3" width="48" height="48" alt="Your avatar">
-                                        <div class="flex-grow-1">
-                                            <EditForm Model="@newComment" OnValidSubmit="AddComment">
-                                                <div class="mb-2">
-                                                    <InputTextArea class="form-control" rows="3" @bind-Value="newComment.Content"
-                                                                   placeholder="Share your thoughts on this story..." />
-                                                </div>
-                                                <button type="submit" class="btn btn-primary" disabled="@addingComment">
-                                                    @if (addingComment)
-                                                    {
-                                                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                                                    }
-                                                    Post Comment
-                                                </button>
-                                            </EditForm>
+                                <!-- Main comment form -->
+                                @if (!isReplyingTo.HasValue)
+                                {
+                                    <div class="mb-4">
+                                        <div class="d-flex align-items-start">
+                                            <img src="https://ui-avatars.com/api/?name=@authState.User.Identity?.Name&background=random"
+                                                 class="rounded-circle me-3" width="48" height="48" alt="Your avatar">
+                                            <div class="flex-grow-1">
+                                                <EditForm Model="@newComment" OnValidSubmit="AddComment">
+                                                    <div class="mb-2">
+                                                        <InputTextArea class="form-control" rows="3" @bind-Value="newComment.Content"
+                                                                       placeholder="Share your thoughts on this story..." />
+                                                        @if (!string.IsNullOrEmpty(commentError))
+                                                        {
+                                                            <div class="text-danger small mt-1">@commentError</div>
+                                                        }
+                                                    </div>
+                                                    <button type="submit" class="btn btn-primary" disabled="@addingComment">
+                                                        @if (addingComment)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                                        }
+                                                        Post Comment
+                                                    </button>
+                                                </EditForm>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                }
                             }
                             else
                             {
@@ -242,47 +250,161 @@ else
 
                         @if (post.Comments.Any())
                         {
-                            @foreach (var comment in post.Comments.OrderByDescending(c => c.Created))
+                            @foreach (var comment in post.Comments.Where(c => c.ParentCommentId == null).OrderByDescending(c => c.Created))
                             {
-                                <div class="comment-card">
-                                    <div class="d-flex">
-                                        <img src="https://ui-avatars.com/api/?name=@comment.Author?.UserName&background=random"
-                                             class="rounded-circle me-3" width="48" height="48" alt="@comment.Author?.UserName">
-                                        <div class="flex-grow-1">
-                                            <div class="d-flex justify-content-between align-items-start">
-                                                <div>
-                                                    <h6 class="mb-1">
-                                                        @comment.Author?.UserName
-                                                        @if (comment.Author?.IsAdmin == true)
-                                                        {
-                                                            <span class="badge bg-danger ms-2">Admin</span>
-                                                        }
-                                                    </h6>
-                                                    <small class="text-muted">@GetTimeAgo(comment.Created)</small>
+                                <div class="comment-thread mb-3">
+                                    <!-- Parent Comment -->
+                                    <div class="comment-card @(comment.Author?.IsAdmin == true ? "admin-comment" : "")">
+                                        <div class="d-flex">
+                                            <img src="https://ui-avatars.com/api/?name=@comment.Author?.UserName&background=random"
+                                                 class="rounded-circle me-3" width="48" height="48" alt="@comment.Author?.UserName">
+                                            <div class="flex-grow-1">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <h6 class="mb-1">
+                                                            @comment.Author?.UserName
+                                                            @if (comment.Author?.IsAdmin == true)
+                                                            {
+                                                                <span class="badge bg-danger ms-2">Admin</span>
+                                                            }
+                                                        </h6>
+                                                        <small class="text-muted">@GetTimeAgo(comment.Created)</small>
+                                                    </div>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-link text-muted" type="button"
+                                                                data-bs-toggle="dropdown" aria-expanded="false">
+                                                            <i class="bi bi-three-dots"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu dropdown-menu-end">
+                                                            @if (authState?.User.Identity?.IsAuthenticated == true && isUserActive)
+                                                            {
+                                                                @if (!HasReplies(comment))
+                                                                {
+                                                                    <li>
+                                                                        <button class="dropdown-item" @onclick="() => StartReply(comment)">
+                                                                            <i class="bi bi-reply"></i> Reply
+                                                                        </button>
+                                                                    </li>
+                                                                }
+                                                            }
+                                                            @if (authState?.User.Identity?.IsAuthenticated == true)
+                                                            {
+                                                                @if (currentUserId == comment.AuthorId || authState.User.IsInRole("Admin"))
+                                                                {
+                                                                    <li>
+                                                                        <button class="dropdown-item text-danger"
+                                                                                @onclick="() => DeleteComment(comment.Id)">
+                                                                            <i class="bi bi-trash"></i> Delete
+                                                                        </button>
+                                                                    </li>
+                                                                }
+                                                                @if (currentUserId != comment.AuthorId)
+                                                                {
+                                                                    <li>
+                                                                        <button class="dropdown-item text-warning"
+                                                                                @onclick="() => ShowReportDialog(comment)">
+                                                                            <i class="bi bi-flag"></i> Report
+                                                                        </button>
+                                                                    </li>
+                                                                }
+                                                            }
+                                                        </ul>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    @if (authState?.User.Identity?.IsAuthenticated == true)
-                                                    {
-                                                        @if (currentUserId == comment.AuthorId || authState.User.IsInRole("Admin"))
-                                                        {
-                                                            <button class="btn btn-sm btn-outline-danger me-1"
-                                                                    @onclick="() => DeleteComment(comment.Id)">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        }
-                                                        @if (currentUserId != comment.AuthorId)
-                                                        {
-                                                            <button class="btn btn-sm btn-outline-warning"
-                                                                    @onclick="() => ShowReportDialog(comment)">
-                                                                <i class="bi bi-flag"></i>
-                                                            </button>
-                                                        }
-                                                    }
-                                                </div>
+                                                <p class="mt-2 mb-0">@((MarkupString)SanitizeCommentForDisplay(comment.Content))</p>
+
+                                                @if (HasReplies(comment))
+                                                {
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-chat-dots"></i> @GetReplyCount(comment)
+                                                        @(GetReplyCount(comment) == 1 ? "reply" : "replies")
+                                                    </small>
+                                                }
                                             </div>
-                                            <p class="mt-2 mb-0">@comment.Content</p>
                                         </div>
                                     </div>
+
+                                    <!-- Reply Form (if replying to this comment) -->
+                                    @if (isReplyingTo == comment.Id && authState?.User.Identity?.IsAuthenticated == true && isUserActive)
+                                    {
+                                        <div class="reply-form ms-5 mt-2 mb-2">
+                                            <div class="d-flex align-items-start">
+                                                <img src="https://ui-avatars.com/api/?name=@authState.User.Identity?.Name&background=random"
+                                                     class="rounded-circle me-2" width="36" height="36" alt="Your avatar">
+                                                <div class="flex-grow-1">
+                                                    <div class="alert alert-info py-1 px-2 mb-2">
+                                                        <small>Replying to @comment.Author?.UserName</small>
+                                                    </div>
+                                                    <EditForm Model="@replyComment" OnValidSubmit="AddReply">
+                                                        <div class="mb-2">
+                                                            <InputTextArea class="form-control form-control-sm" rows="2"
+                                                                           @bind-Value="replyComment.Content"
+                                                                           placeholder="Write your reply..." />
+                                                            @if (!string.IsNullOrEmpty(replyError))
+                                                            {
+                                                                <div class="text-danger small mt-1">@replyError</div>
+                                                            }
+                                                        </div>
+                                                        <div>
+                                                            <button type="submit" class="btn btn-primary btn-sm" disabled="@addingReply">
+                                                                @if (addingReply)
+                                                                {
+                                                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                                                }
+                                                                Post Reply
+                                                            </button>
+                                                            <button type="button" class="btn btn-secondary btn-sm ms-2"
+                                                                    @onclick="CancelReply">
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </EditForm>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    <!-- Replies -->
+                                    @{
+                                        var replies = post.Comments.Where(c => c.ParentCommentId == comment.Id).OrderBy(c => c.Created);
+                                        if (replies.Any())
+                                        {
+                                            <div class="replies ms-5">
+                                                @foreach (var reply in replies)
+                                                {
+                                                    <div class="reply-card @(reply.Author?.IsAdmin == true ? "admin-comment" : "")">
+                                                        <div class="d-flex">
+                                                            <img src="https://ui-avatars.com/api/?name=@reply.Author?.UserName&background=random"
+                                                                 class="rounded-circle me-2" width="36" height="36" alt="@reply.Author?.UserName">
+                                                            <div class="flex-grow-1">
+                                                                <div class="d-flex justify-content-between align-items-start">
+                                                                    <div>
+                                                                        <strong class="me-2">@reply.Author?.UserName</strong>
+                                                                        @if (reply.Author?.IsAdmin == true)
+                                                                        {
+                                                                            <span class="badge bg-danger badge-sm">Admin</span>
+                                                                        }
+                                                                        <small class="text-muted">@GetTimeAgo(reply.Created)</small>
+                                                                    </div>
+                                                                    @if (authState?.User.Identity?.IsAuthenticated == true)
+                                                                    {
+                                                                        @if (currentUserId == reply.AuthorId || authState.User.IsInRole("Admin"))
+                                                                        {
+                                                                            <button class="btn btn-sm btn-link text-danger p-0"
+                                                                                    @onclick="() => DeleteComment(reply.Id)">
+                                                                                <i class="bi bi-trash"></i>
+                                                                            </button>
+                                                                        }
+                                                                    }
+                                                                </div>
+                                                                <p class="mt-1 mb-0">@((MarkupString)SanitizeCommentForDisplay(reply.Content))</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    }
                                 </div>
                             }
                         }
@@ -426,6 +548,54 @@ else
             border-left-color: var(--bs-primary);
             transform: translateX(5px);
         }
+
+    /* Reply styling */
+    .comment-thread {
+        border-left: 2px solid transparent;
+        transition: border-color 0.3s ease;
+    }
+
+        .comment-thread:hover {
+            border-left-color: var(--bs-primary);
+        }
+
+    .reply-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+        border-left: 3px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+        .reply-card:hover {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left-color: var(--bs-primary);
+        }
+
+    .reply-form {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 1rem;
+        border: 2px dashed #dee2e6;
+    }
+
+    .admin-comment {
+        border-left: 3px solid #dc3545 !important;
+    }
+
+    .replies {
+        border-left: 2px solid #e9ecef;
+        padding-left: 1rem;
+        margin-top: 1rem;
+    }
+
+    .badge-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
 
     /* Animations */
     @@keyframes fadeInUp {
