@@ -36,6 +36,12 @@ public class CustomAuthenticationStateProvider : AuthenticationStateProvider
                 userSessionResult = await _localStorage.GetAsync<UserSession>("userSession");
                 _logger.LogInformation($"LocalStorage read. Success: {userSessionResult.Success}");
             }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop"))
+            {
+                // This happens during prerendering/SSR - it's expected
+                _logger.LogInformation("JavaScript interop not available (SSR/prerendering), returning anonymous");
+                return new AuthenticationState(_anonymous);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error reading from localStorage");

@@ -36,46 +36,75 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
+            // Don't do auth check here during SSR
+            // Just set loading state
             isLoading = true;
+        }
 
-            authState = await AuthStateProvider.GetAuthenticationStateAsync();
-
-            // Check if user is authenticated
-            if (authState?.User.Identity?.IsAuthenticated != true)
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
             {
-                Console.WriteLine("AdminCreatePost - Not authenticated, redirecting to login");
-                Navigation.NavigateTo("/login");
-                return;
+                // Now we can safely check auth state after render when JS is available
+                await CheckAuthorizationAndInitialize();
             }
+        }
 
-            // Check if user is admin
-            if (!authState.User.IsInRole("Admin"))
+        private async Task CheckAuthorizationAndInitialize()
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            try
             {
-                Console.WriteLine("AdminCreatePost - Not admin, showing error");
-                isAuthorized = false;
+                authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+                // Check if user is authenticated
+                if (authState?.User.Identity?.IsAuthenticated != true)
+                {
+                    Console.WriteLine("AdminCreatePost - Not authenticated, redirecting to login");
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                // Check if user is admin
+                if (!authState.User.IsInRole("Admin"))
+                {
+                    Console.WriteLine("AdminCreatePost - Not admin, showing error");
+                    isAuthorized = false;
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+
+                Console.WriteLine("AdminCreatePost - User is authorized admin");
+                isAuthorized = true;
+
+                // Get current user ID for post creation
+                var userIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    currentUserId = userId;
+                }
+
+                // Set up auto-save timer (every 30 seconds)
+                autoSaveTimer = new System.Timers.Timer(30000);
+                autoSaveTimer.Elapsed += async (sender, e) => await AutoSave();
+                autoSaveTimer.Start();
+
+                // Load draft if exists
+                await LoadDraft();
+
                 isLoading = false;
-                return;
+                StateHasChanged();
             }
-
-            Console.WriteLine("AdminCreatePost - User is authorized admin");
-            isAuthorized = true;
-
-            // Get current user ID for post creation
-            var userIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-            if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
+            catch (Exception ex)
             {
-                currentUserId = userId;
+                Console.WriteLine($"Error during authorization check: {ex.Message}");
+                isLoading = false;
+                isAuthorized = false;
+                StateHasChanged();
             }
-
-            // Set up auto-save timer (every 30 seconds)
-            autoSaveTimer = new System.Timers.Timer(30000);
-            autoSaveTimer.Elapsed += async (sender, e) => await AutoSave();
-            autoSaveTimer.Start();
-
-            // Load draft if exists
-            await LoadDraft();
-
-            isLoading = false;
         }
 
         private void NextSection()

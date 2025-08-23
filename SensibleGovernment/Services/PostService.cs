@@ -20,6 +20,7 @@ public class PostService
             .Include(p => p.Comments)
                 .ThenInclude(c => c.Author)
             .Include(p => p.Likes)
+            .Include(p => p.Sources)
             .OrderByDescending(p => p.Created)
             .ToListAsync();
     }
@@ -44,6 +45,7 @@ public class PostService
                 .ThenInclude(c => c.Author)
             .Include(p => p.Likes)
                 .ThenInclude(l => l.User)
+            .Include(p => p.Sources)
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 

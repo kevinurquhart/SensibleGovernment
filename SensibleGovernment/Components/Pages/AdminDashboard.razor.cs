@@ -20,7 +20,24 @@ namespace SensibleGovernment.Components.Pages
 
         protected override async Task OnInitializedAsync()
         {
+            // Don't do auth check here during SSR
+            // Just set loading state
             isLoading = true;
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                // Now we can safely check auth state after render when JS is available
+                await CheckAuthorizationAndLoadDashboard();
+            }
+        }
+
+        private async Task CheckAuthorizationAndLoadDashboard()
+        {
+            isLoading = true;
+            StateHasChanged();
 
             try
             {
@@ -46,6 +63,7 @@ namespace SensibleGovernment.Components.Pages
                     Console.WriteLine("AdminDashboard - Not admin, showing error");
                     isAuthorized = false;
                     isLoading = false;
+                    StateHasChanged();
                     return;
                 }
 
@@ -63,6 +81,7 @@ namespace SensibleGovernment.Components.Pages
             finally
             {
                 isLoading = false;
+                StateHasChanged();
             }
         }
 
